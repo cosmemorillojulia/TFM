@@ -1,0 +1,20 @@
+# Dependencias del sistema de analisis de tenis por Computer Vision.
+# Versiones de referencia: las instaladas en el entorno de desarrollo (Python 3.13).
+# torch/torchvision aqui son CPU. Para GPU, instala la build CUDA correspondiente
+# desde https://pytorch.org segun tu version de CUDA.
+
+# Vision y deep learning
+ultralytics>=8.4          # YOLOv8 + ByteTrack (tracking de jugadores)
+torch>=2.2                # TrackNet (inferencia de pelota)
+torchvision>=0.17         # encoder VGG16 preentrenado
+opencv-python>=4.8        # lectura de frames, homografia, seleccion de esquinas
+lap>=0.5                  # asignacion para ByteTrack
+
+# Datos y numerico
+numpy>=1.26
+pandas>=2.0
+scipy>=1.11               # gaussian_kde para los heatmaps
+
+# Visualizacion y export
+matplotlib>=3.7
+openpyxl>=3.1             # export final a Excel (--excel)
