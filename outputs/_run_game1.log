@@ -1,0 +1,8 @@
+03:15:02 | INFO    | main | Game: Dataset\game1 | salida: C:\Users\cosme\Documents\UNAV\TFM\ProyectoTFM\outputs\game1
+03:15:02 | INFO    | src.utils.io | Conservado cache de esquinas: C:\Users\cosme\Documents\UNAV\TFM\ProyectoTFM\outputs\game1\court_points.json
+03:15:02 | INFO    | src.pipeline.orchestrator | Game game1 | 13 clips: Clip1, Clip2, Clip3, Clip4, Clip5, Clip6, Clip7, Clip8, Clip9, Clip10, Clip11, Clip12, Clip13
+03:15:02 | INFO    | src.tracking.player_tracker | Jugadores | game1/Clip1 | 207 frames | 1280x720
+03:15:02 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolov8s.pt | clases COCO: 80
+C:\Users\cosme\Documents\UNAV\TFM\ProyectoTFM\src\tracking\player_tracker.py:209: UserWarning: No se ha detectado GPU. YOLO correra en CPU; considera reducir IMGSZ o aumentar FRAME_STEP si tarda demasiado.
+  device = _get_device()
+03:15:02 | INFO    | src.tracking.player_tracker | YOLO ejecutandose en CPU.

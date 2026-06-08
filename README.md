@@ -1,41 +1,93 @@
 # TFM — Análisis de rendimiento en tenis mediante Computer Vision
 
-Sistema que, a partir de los vídeos (secuencias de frames) de un partido de tenis, **detecta y trackea a los jugadores y la pelota**, proyecta sus posiciones a coordenadas reales de la pista (metros) y genera **mapas de calor** de ocupación y de rebotes.
+Sistema que, a partir de los vídeos (secuencias de frames) de un partido de tenis,
+**detecta y trackea a los jugadores y la pelota**, proyecta sus posiciones a coordenadas
+reales de la pista (metros) y genera **mapas de calor** de ocupación y de rebotes.
 
-El proyecto está organizado como un **pipeline de 4 notebooks** que se ejecutan en orden. Cada notebook lee los artefactos (CSV / PNG) que produjo el anterior en la carpeta `outputs/`, de modo que las etapas están desacopladas y se pueden re-ejecutar de forma independiente.
+El proyecto era originalmente un conjunto de 4 notebooks de Jupyter encadenados. Se ha
+reorganizado como un **proyecto Python modular** que se ejecuta de una sola orden:
 
+```bash
+python main.py --game-path Dataset/game1
 ```
-Frames de vídeo
-      │
-      ▼
-[1] Tracking de jugadores ──▶ player_positions.csv
-      │
-[2] Tracking de pelota ─────▶ ball_positions.csv   (+ modelo TrackNet entrenado)
-      │
-[3] Homografía ────────────▶ *_real_coords.csv     (píxeles ▶ metros)
-      │
-[4] Heatmaps ──────────────▶ *.png                 (mapas de calor sobre la pista 2D)
-```
+
+Este comando procesa el *game* entero (todos sus clips), acumula los resultados en CSV,
+los proyecta a metros y genera los mapas de calor, sin tocar nada más.
+
+> Los notebooks originales se conservan, archivados, en [`old_notebooks/`](old_notebooks/).
+> El proyecto **no entrena** ningún modelo: la red de pelota (TrackNet) ya entrenada se
+> carga desde `outputs/models/tracknet_best.pth` y se usa solo para inferencia.
 
 ---
 
-## Pipeline
+## Cómo ejecutar
 
-| # | Notebook | Qué hace | Técnica | Salida principal |
-|---|----------|----------|---------|------------------|
-| 1 | `01_player_tracking.ipynb` | Detecta y trackea a los 2 jugadores en cada frame. Filtra detecciones espurias (recogepelotas, jueces, árbitro) con bandas geométricas y zonas de exclusión, interpola los frames saltados y asigna etiquetas estables `player_top` / `player_bottom`. | YOLOv8s + ByteTrack | `outputs/tracking/player_positions.csv` |
-| 2 | `02_ball_tracking.ipynb` | Entrena una red **TrackNet** sobre el dataset y, con el modelo entrenado, predice la posición de la pelota frame a frame. | TrackNet (encoder VGG16 + decoder U-Net, salida heatmap) | `outputs/models/tracknet_best.pth`, `outputs/tracking/ball_positions.csv` |
-| 3 | `03_homography.ipynb` | Calcula la homografía píxel→mundo a partir de las 4 esquinas de la pista (seleccionadas manualmente) y proyecta las posiciones de jugadores y pelota a metros sobre el plano real de la pista ITF. | `cv2.findHomography` | `outputs/projected/player_real_coords.csv`, `ball_real_coords.csv` |
-| 4 | `04_heatmap.ipynb` | Genera los mapas de calor finales: densidad de ocupación por jugador (KDE 2D) y mapa de rebotes de la pelota, superpuestos sobre una pista 2D dibujada a escala. | `scipy.stats.gaussian_kde` | `outputs/heatmaps/*.png` |
+1. **Instala las dependencias** (idealmente en un entorno virtual):
+   ```bash
+   pip install -r requirements.txt
+   ```
+   > Para GPU, instala la build CUDA de `torch`/`torchvision` desde
+   > [pytorch.org](https://pytorch.org). El sistema funciona en CPU, pero la inferencia
+   > de pelota es más lenta.
 
-> Cada notebook está pensado para ejecutarse con **`Kernel → Restart & Run All`**. Toda la configuración (rutas, parámetros, clip de prueba) vive en la celda **"1. Configuración"** al principio de cada uno.
+2. **Coloca el dataset** en `Dataset/` (un directorio por game, con clips y su `Label.csv`)
+   y el **modelo entrenado** en `outputs/models/tracknet_best.pth`.
 
-### Detalle de la red de pelota (TrackNet)
+3. **Ejecuta** sobre un game:
+   ```bash
+   python main.py --game-path Dataset/game1
+   ```
+   La **primera vez** por game se abrirá una ventana para que cliques las **4 esquinas de
+   la pista** (en orden: inferior-izq, inferior-der, superior-der, superior-izq). Quedan
+   cacheadas y no se vuelven a pedir.
 
-- **Entrada:** 3 frames consecutivos `(t-2, t-1, t)` apilados como tensor de 9 canales (RGB×3), a resolución 640×360.
-- **Salida:** un heatmap 2D donde la pelota es un pico gaussiano (σ = 5 px); la posición se extrae como el píxel de máxima activación.
-- **Arquitectura:** encoder VGG16 preentrenado en ImageNet (primera capa adaptada de 3 a 9 canales) + decoder tipo U-Net con skip connections.
-- **Entrenamiento:** se hace por GPU en Google Colab mediante el notebook auxiliar `02-0_model_ball_train.ipynb` (variante de `02` con montaje de Drive, *mixed precision* y *loss* ponderada). El checkpoint resultante (`tracknet_best.pth`) se copia a `outputs/models/`.
+### Argumentos de `main.py`
+
+| Argumento | Descripción |
+|---|---|
+| `--game-path` | (obligatorio) Carpeta del game a procesar, p.ej. `Dataset/game1`. |
+| `--output-dir` | Carpeta de salida. Por defecto `outputs/<nombre_del_game>`. |
+| `--excel` | Exporta además los CSV master a un Excel (`resultados.xlsx`). |
+| `--log-level` | Detalle del log: `DEBUG`, `INFO` (defecto), `WARNING`, `ERROR`. |
+
+> **Re-ejecución:** si la carpeta de salida ya existe, se reescriben desde cero los CSV de
+> `tracking/`, `projected/` y los PNG de `heatmaps/` (no se duplican filas). El cache de
+> esquinas `court_points.json` **nunca** se borra.
+
+---
+
+## El flujo, paso a paso
+
+El orquestador ([`src/pipeline/orchestrator.py`](src/pipeline/orchestrator.py)) ejecuta:
+
+```
+Dado --game-path Dataset/game1:
+
+1. Descubrir todos los clips del game (Clip1, Clip2, ...).
+
+2. Bucle CLIP A CLIP  (la unidad del bucle es el clip, no el frame: TrackNet
+   necesita 3 frames consecutivos y ByteTrack continuidad temporal):
+     a. player_tracker  -> posiciones de los 2 jugadores -> APPEND players_master.csv
+     b. ball_tracker     -> posición de la pelota          -> APPEND ball_master.csv
+
+3. Tras TODOS los clips del game:
+     a. homography  -> cargar/seleccionar las 4 esquinas, proyectar a metros
+     b. heatmaps    -> generar los PNG sobre la pista 2D
+
+4. (Opcional, --excel) exportar los CSV master a resultados.xlsx
+```
+
+Cada fila de los CSV master lleva las columnas `clip` y `frame`, de modo que cada
+posición queda identificada de forma única y se puede filtrar por clip.
+
+### Las etapas y la técnica de cada una
+
+| Etapa | Módulo | Técnica |
+|---|---|---|
+| Tracking de jugadores | [`src/tracking/player_tracker.py`](src/tracking/player_tracker.py) | YOLOv8s + ByteTrack, filtrado geométrico (zonas de exclusión de recogepelotas/jueces), interpolación y etiquetado `player_top`/`player_bottom` |
+| Tracking de pelota | [`src/tracking/ball_tracker.py`](src/tracking/ball_tracker.py) | TrackNet (solo inferencia) sobre ventanas de 3 frames; el `is_bounce` se toma del `status` del `Label.csv` |
+| Homografía | [`src/geometry/homography.py`](src/geometry/homography.py) | `cv2.findHomography` (4 esquinas) y proyección píxel → metros |
+| Heatmaps | [`src/visualization/heatmaps.py`](src/visualization/heatmaps.py) | KDE 2D (`scipy.stats.gaussian_kde`) por jugador + mapa de rebotes |
 
 ---
 
@@ -43,34 +95,48 @@ Frames de vídeo
 
 ```
 ProyectoTFM/
-├── 01_player_tracking.ipynb        # Etapa 1 — jugadores (YOLOv8 + ByteTrack)
-├── 02_ball_tracking.ipynb          # Etapa 2 — pelota (TrackNet: entreno + inferencia, local)
-├── 02-0_model_ball_train.ipynb     # Etapa 2 — entrenamiento de TrackNet en Google Colab (GPU)
-├── 03_homography.ipynb             # Etapa 3 — proyección píxel ▶ metros
-├── 04_heatmap.ipynb                # Etapa 4 — mapas de calor
-├── Easy_Demo_CV_With_Pretrained_YOLO.ipynb   # Demo independiente (no forma parte del pipeline)
+├── main.py                     # Orquestador. python main.py --game-path Dataset/game1
+├── config.py                   # TODAS las rutas, parámetros y constantes (pista ITF, TrackNet, KDE...)
+├── requirements.txt
+├── README.md
 │
-├── Dataset/                        # Dataset TrackNet de tenis (no versionado)
-│   ├── game1/ … game10/
-│   │   └── ClipN/
-│   │       ├── 0000.jpg … NNNN.jpg # Frames del clip
-│   │       └── Label.csv           # Etiquetas de la pelota por frame
-│   └── Readme.docx
+├── src/
+│   ├── data/loaders.py         # Descubrir clips de un game, listar frames, leer Label.csv
+│   ├── models/tracknet.py      # Arquitectura TrackNet (encoder VGG16 9 canales + decoder U-Net)
+│   ├── tracking/
+│   │   ├── player_tracker.py   # YOLOv8 + ByteTrack + filtrado/interpolación/etiquetado
+│   │   └── ball_tracker.py     # Inferencia TrackNet (ventana de 3 frames). SOLO inferencia
+│   ├── geometry/homography.py  # findHomography + proyección píxel→metros + selección de esquinas
+│   ├── visualization/heatmaps.py  # KDE de jugadores + mapa de rebotes + vista combinada
+│   ├── pipeline/orchestrator.py   # Bucle clip a clip y escritura acumulada
+│   └── utils/io.py             # Append seguro a CSV, reseteo de run, export a Excel
 │
-├── outputs/                        # Artefactos generados por el pipeline
-│   ├── tracking/                   # player_positions.csv, ball_positions.csv
-│   ├── models/                     # tracknet_best.pth
-│   ├── homography/                 # court_points.json (esquinas de pista)
-│   ├── projected/                  # *_real_coords.csv (coordenadas en metros)
-│   └── heatmaps/                   # *.png (mapas de calor)
+├── old_notebooks/              # Los 4 notebooks originales + el de entrenamiento + demo (archivados)
 │
-├── yolov8s.pt                      # Pesos YOLOv8s (no versionado)
-└── README.md
+├── outputs/
+│   ├── models/
+│   │   └── tracknet_best.pth   # Modelo entrenado (global, compartido entre ejecuciones)
+│   └── <game>/                 # Una carpeta por game procesado (p.ej. game1)
+│       ├── court_points.json   # Esquinas de pista cacheadas (NO se borra al reejecutar)
+│       ├── tracking/           # players_master.csv, ball_master.csv (acumulados)
+│       ├── projected/          # *_real_coords.csv (coordenadas en metros)
+│       └── heatmaps/           # *.png (mapas de calor)
+│
+└── Dataset/                    # Dataset TrackNet de tenis (no versionado)
+    └── gameN/ClipM/            # Frames 0000.jpg... + Label.csv
 ```
+
+### Configuración
+
+Toda la parametrización vive en [`config.py`](config.py): rutas, modelo y umbrales de YOLO,
+bandas y zonas de exclusión del filtro de jugadores, resolución y umbral de TrackNet,
+dimensiones de la pista ITF, márgenes y parámetros del KDE. Los módulos de `src/` no
+contienen rutas ni umbrales hardcodeados: todo se importa de aquí.
 
 ### El dataset
 
-Se usa el **TrackNet tennis dataset**: 10 partidos (`game1`–`game10`) divididos en clips, ~15 700 frames de 1280×720 en total. Cada clip incluye sus frames como `.jpg` y un `Label.csv` con una fila por frame:
+Se usa el **TrackNet tennis dataset**: partidos (`game1`, `game2`, …) divididos en clips.
+Cada clip incluye sus frames como `.jpg` y un `Label.csv` con una fila por frame:
 
 | Columna | Significado |
 |---------|-------------|
@@ -81,35 +147,24 @@ Se usa el **TrackNet tennis dataset**: 10 partidos (`game1`–`game10`) dividido
 
 ---
 
-## Requisitos
-
-- **Python 3.9+** y Jupyter / VS Code.
-- Para el tracking de jugadores (notebook 1): `ultralytics`, `opencv-python`, `torch`, `pandas`, `numpy`, `matplotlib`, `lap`.
-- Para la pelota (notebook 2): `torch`, `torchvision`, `opencv-python`, `numpy`, `pandas`, `matplotlib`.
-- Para homografía y heatmaps (3 y 4): `opencv-python`, `numpy`, `pandas`, `scipy`, `matplotlib`.
-
-```bash
-pip install ultralytics opencv-python torch torchvision pandas numpy scipy matplotlib lap
-```
-
-> **GPU:** los notebooks funcionan en CPU, pero el **entrenamiento de TrackNet es muy lento sin GPU**. Por eso el entrenamiento se realiza en Google Colab (`02-0_model_ball_train.ipynb`); el resto de etapas corren bien en local.
-
----
-
-## Cómo ejecutar
-
-1. Coloca el dataset en `Dataset/` (un directorio por partido, con clips y su `Label.csv`).
-2. Asegúrate de tener `yolov8s.pt` en la raíz (se descarga automáticamente la primera vez que `ultralytics` lo necesita).
-3. Ejecuta los notebooks **en orden** (1 → 2 → 3 → 4), cada uno con *Restart & Run All*. En el notebook 3 deberás **clicar las 4 esquinas de la pista** la primera vez (luego se guardan en `outputs/homography/court_points.json`).
-4. Los resultados aparecen en `outputs/`: los mapas de calor finales, en `outputs/heatmaps/`.
-
-> El clip de referencia para la proyección es `game1/Clip1`. Si cambias de clip, recuerda re-seleccionar las esquinas de la pista en el notebook 3.
-
----
-
 ## Salidas
 
-- **`outputs/tracking/player_positions.csv`** — posición del punto de pie y bounding box de cada jugador, por frame.
-- **`outputs/tracking/ball_positions.csv`** — posición de la pelota por frame (con `visibility` e `is_bounce`).
-- **`outputs/projected/*_real_coords.csv`** — las mismas posiciones proyectadas a metros sobre la pista.
-- **`outputs/heatmaps/`** — `player_1_heatmap.png`, `player_2_heatmap.png`, `ball_bounces_map.png` y `combined_view.png`.
+Para un game procesado en `outputs/<game>/`:
+
+- **`tracking/players_master.csv`** — punto de pie y bounding box de cada jugador, por clip y frame.
+- **`tracking/ball_master.csv`** — posición de la pelota por clip y frame (con `visibility` e `is_bounce`).
+- **`projected/*_real_coords.csv`** — las mismas posiciones proyectadas a metros sobre la pista.
+- **`heatmaps/`** — `player_top_heatmap.png`, `player_bottom_heatmap.png`, `ball_bounces_map.png` y `combined_view.png`.
+- **`resultados.xlsx`** — (solo con `--excel`) los CSV master en un Excel, una hoja cada uno.
+
+---
+
+## Notas
+
+- El entrenamiento de TrackNet **no forma parte de este proyecto**; se hizo en Google Colab
+  con GPU. Ese notebook queda archivado en `old_notebooks/02-0_model_ball_train.ipynb`.
+- La selección interactiva de esquinas requiere un entorno con interfaz gráfica (la primera
+  vez por game). En ejecuciones posteriores se reutiliza el `court_points.json` cacheado.
+- Por defecto se usa una homografía por game (cámara consistente). El diseño está preparado
+  para pasar a una homografía por clip cambiando la clave de cache, sin reescribir el módulo.
+```
