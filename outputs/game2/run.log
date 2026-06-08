@@ -1,0 +1,8 @@
+10:43:18 | INFO    | main | Game: Dataset\game2 | salida: C:\Users\cosme\Documents\UNAV\TFM\ProyectoTFM\outputs\game2
+10:43:18 | INFO    | src.pipeline.orchestrator | Game game2 | 8 clips: Clip1, Clip2, Clip3, Clip4, Clip5, Clip6, Clip7, Clip8
+10:43:19 | INFO    | src.tracking.player_tracker | Jugadores | game2/Clip1 | 361 frames | 1280x720
+10:43:19 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolov8s.pt | clases COCO: 80
+10:43:19 | INFO    | src.tracking.player_tracker | YOLO ejecutandose en CPU.
+11:24:08 | INFO    | src.tracking.ball_tracker | TrackNet ejecutandose en CPU.
+11:24:16 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 1, val_loss 0.00267)
+11:24:16 | INFO    | src.tracking.ball_tracker | Pelota | game2/Clip1 | 361 frames
