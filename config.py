@@ -47,6 +47,10 @@ BALL_REAL_CSV = "ball_real_coords.csv"
 # Nombre del Excel de exportacion final.
 EXCEL_FILENAME = "resultados.xlsx"
 
+# Nombre del fichero de log del run. Se escribe dentro de la carpeta de salida
+# del game (outputs/<game>/run.log).
+RUN_LOG_FILENAME = "run.log"
+
 
 # ===========================================================================
 # Tracking de jugadores (YOLOv8 + ByteTrack)  -- portado de 01_player_tracking

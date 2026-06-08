@@ -48,7 +48,14 @@ los proyecta a metros y genera los mapas de calor, sin tocar nada más.
 | `--game-path` | (obligatorio) Carpeta del game a procesar, p.ej. `Dataset/game1`. |
 | `--output-dir` | Carpeta de salida. Por defecto `outputs/<nombre_del_game>`. |
 | `--excel` | Exporta además los CSV master a un Excel (`resultados.xlsx`). |
-| `--log-level` | Detalle del log: `DEBUG`, `INFO` (defecto), `WARNING`, `ERROR`. |
+| `--log-level` | Detalle del log: `DEBUG`, `INFO` (defecto), `WARNING`, `ERROR`. Ver tabla de niveles abajo. |
+
+| Nivel | Qué muestra |
+|---|---|
+| `DEBUG` | Todo: cada frame procesado, detecciones individuales, valores intermedios. Muy verbose. |
+| `INFO` | Progreso normal: qué clip se está procesando, cuántos frames detectados, artefactos generados. Es el útil para seguir la ejecución. |
+| `WARNING` | Solo avisos: CSV que faltan, GPU no detectada, datos insuficientes para KDE. |
+| `ERROR` | Solo errores graves que interrumpen el pipeline. |
 
 > **Re-ejecución:** si la carpeta de salida ya existe, se reescriben desde cero los CSV de
 > `tracking/`, `projected/` y los PNG de `heatmaps/` (no se duplican filas). El cache de

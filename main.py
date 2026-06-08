@@ -62,22 +62,35 @@ def resolve_output_dir(game_path, output_dir):
     return config.OUTPUTS_ROOT / Path(game_path).name
 
 
+def _setup_logging(level, log_file):
+    """Configura el logging a consola y a un fichero dentro de la carpeta del run."""
+    handlers = [logging.StreamHandler()]
+    if log_file is not None:
+        log_file.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(logging.FileHandler(log_file, mode="w", encoding="utf-8"))
+    logging.basicConfig(
+        level=getattr(logging, level),
+        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
+        datefmt="%H:%M:%S",
+        handlers=handlers,
+    )
+
+
 def main(argv=None):
     args = parse_args(argv)
 
-    logging.basicConfig(
-        level=getattr(logging, args.log_level),
-        format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
-        datefmt="%H:%M:%S",
-    )
-    logger = logging.getLogger("main")
-
     game_path = Path(args.game_path)
     if not game_path.is_dir():
-        logger.error("No existe la carpeta del game: %s", game_path)
+        # Aun sin logging configurado; usar uno minimo para el mensaje de error.
+        _setup_logging(args.log_level, log_file=None)
+        logging.getLogger("main").error("No existe la carpeta del game: %s", game_path)
         return 1
 
     output_dir = resolve_output_dir(game_path, args.output_dir)
+
+    # El log del run vive dentro de la carpeta de salida (outputs/<game>/run.log).
+    _setup_logging(args.log_level, output_dir / config.RUN_LOG_FILENAME)
+    logger = logging.getLogger("main")
     logger.info("Game: %s | salida: %s", game_path, output_dir)
 
     # Preparar la carpeta de salida (borra artefactos del run previo, conserva esquinas).
