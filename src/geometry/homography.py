@@ -79,6 +79,36 @@ def compute_homography(image_points):
     return homography
 
 
+def invert_homography(matrix):
+    """Devuelve la homografia inversa (metros -> pixel) de una matriz pixel->metros."""
+    return np.linalg.inv(np.asarray(matrix, dtype=np.float64))
+
+
+def court_lines_world():
+    """Devuelve las lineas de la pista ITF en coordenadas mundo (metros).
+
+    Cada linea es un par ``((x0, y0), (x1, y1))``. Mismas referencias que el
+    dibujo cenital de ``heatmaps._draw_court_2d`` (perimetro, lineas de saque,
+    central de saque y red).
+
+    Returns:
+        Lista de tuplas ``((x0, y0), (x1, y1))`` en metros.
+    """
+    w, length = config.COURT_WIDTH, config.COURT_LENGTH
+    s_near = config.NET_Y - config.SERVICE_LINE_FROM_NET
+    s_far = config.NET_Y + config.SERVICE_LINE_FROM_NET
+    return [
+        ((0, 0), (w, 0)),                 # fondo cercano
+        ((w, 0), (w, length)),            # lateral derecho
+        ((w, length), (0, length)),       # fondo lejano
+        ((0, length), (0, 0)),            # lateral izquierdo
+        ((0, s_near), (w, s_near)),       # linea de saque cercana
+        ((0, s_far), (w, s_far)),         # linea de saque lejana
+        ((w / 2, s_near), (w / 2, s_far)),  # central de saque
+        ((0, config.NET_Y), (w, config.NET_Y)),  # red
+    ]
+
+
 def load_or_select_corners(cache_path, reference_frame_path, cache_key=None):
     """Carga las esquinas de pista del cache JSON, o las selecciona interactivamente.
 
@@ -104,52 +134,65 @@ def load_or_select_corners(cache_path, reference_frame_path, cache_key=None):
         return image_points
 
     logger.info("No hay cache de esquinas en %s; abriendo seleccion interactiva.", cache_path)
-    image_points = _select_corners_interactive(reference_frame_path)
-    _save_corners(cache_path, image_points, reference_frame_path, cache_key)
-    return image_points
+    # El servidor web escribe el JSON directamente en cache_path; no hace falta
+    # volver a guardarlo aqui.
+    return _select_corners_interactive(reference_frame_path, cache_path)
 
 
-def _select_corners_interactive(reference_frame_path):
-    """Abre una ventana OpenCV y deja clicar las 4 esquinas de la pista.
+def _select_corners_interactive(reference_frame_path, cache_path):
+    """Lanza el servidor web de seleccion de esquinas y espera el resultado.
+
+    Sustituye la seleccion via cv2.imshow (incompatible con entornos headless).
+    Lanza select_court_points.py en un subproceso; el JSON lo escribe ese script
+    y esta funcion lo lee al terminar.
 
     Returns:
         Array (4, 2) de esquinas en pixeles.
 
     Raises:
-        RuntimeError: si la ventana se cierra antes de marcar las 4 esquinas.
+        RuntimeError: si el usuario no completa la seleccion.
     """
-    img = cv2.imread(str(reference_frame_path))
-    if img is None:
-        raise FileNotFoundError(f"No se pudo leer el frame de referencia: {reference_frame_path}")
+    import subprocess
+    import sys
+    from pathlib import Path
 
-    clicked = []
-    window = "Selecciona 4 esquinas: 1) inf-izq  2) inf-der  3) sup-der  4) sup-izq"
+    cache_path = Path(cache_path)
 
-    def _on_mouse(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN and len(clicked) < 4:
-            clicked.append([float(x), float(y)])
-            cv2.circle(img, (x, y), 6, (0, 0, 255), -1)
-            cv2.putText(img, _CLICK_LABELS[len(clicked) - 1], (x + 8, y - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            if len(clicked) >= 2:
-                pts = np.array(clicked, dtype=np.int32)
-                cv2.polylines(img, [pts], len(clicked) == 4, (0, 255, 255), 1)
+    # Deducir el game a partir de la ruta del frame (outputs/<game>/... o dataset/<game>/...)
+    ref = Path(reference_frame_path)
+    # Buscar el game en la ruta: es el segmento que empieza por "game"
+    game = next((p for p in ref.parts if p.startswith("game")), None)
+    if game is None:
+        raise RuntimeError(
+            f"No se pudo deducir el game de la ruta {reference_frame_path}. "
+            "Ejecuta manualmente: python select_court_points.py --game <game>"
+        )
 
-    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
-    cv2.setMouseCallback(window, _on_mouse)
-    print("Clica las 4 esquinas en orden (inf-izq, inf-der, sup-der, sup-izq). "
-          "Pulsa una tecla al terminar.")
-    while True:
-        cv2.imshow(window, img)
-        key = cv2.waitKey(20) & 0xFF
-        # Salir al completar las 4 esquinas y pulsar tecla, o con ESC.
-        if (len(clicked) == 4 and key != 255) or key == 27:
-            break
-    cv2.destroyWindow(window)
+    script = Path(__file__).resolve().parents[2] / "select_court_points.py"
+    port = 7860
+    logger.info(
+        "Entorno headless detectado. Abre http://0.0.0.0:%d en tu navegador para "
+        "seleccionar las esquinas de %s y pulsa Guardar.", port, game
+    )
+    try:
+        subprocess.run(
+            [sys.executable, str(script),
+             "--game", game,
+             "--output-dir", str(cache_path.parent),
+             "--port", str(port)],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"El servidor de seleccion de esquinas falló: {exc}") from exc
 
-    if len(clicked) != 4:
-        raise RuntimeError(f"Se necesitan 4 esquinas; se marcaron {len(clicked)}.")
-    return np.array(clicked, dtype=np.float32)
+    if not cache_path.exists():
+        raise RuntimeError(
+            f"El servidor terminó pero no se encontró {cache_path}. "
+            "¿Guardaste los puntos antes de cerrar?"
+        )
+    with open(cache_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return np.array(data["image_points"], dtype=np.float32)
 
 
 def _save_corners(cache_path, image_points, reference_frame_path, cache_key):

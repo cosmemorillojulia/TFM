@@ -36,10 +36,32 @@ OUTPUTS_ROOT = Path(os.environ.get("TFM_OUTPUTS_ROOT", PROJECT_ROOT / "outputs")
 MODELS_DIR = OUTPUTS_ROOT / "models"
 BEST_MODEL_PATH = MODELS_DIR / "tracknet_best.pth"
 
-# Nombres de las subcarpetas que cuelgan de la carpeta de cada game (run).
+# Subcarpetas que cuelgan de la carpeta de cada game (run). El pipeline es
+# incremental y reanudable, pero acumula en CSV master (no un fichero por clip):
+#   <output-dir>/tracking/   -> players_master.csv, ball_master.csv (acumulados)
+#   <output-dir>/projected/  -> player_real_coords.csv, ball_real_coords.csv (metros)
+#   <output-dir>/plots/      -> heatmaps, mapa de rebotes, vista combinada
+#   <output-dir>/videos/     -> un mp4 por clip con las predicciones dibujadas
 TRACKING_SUBDIR = "tracking"
 PROJECTED_SUBDIR = "projected"
+PLOTS_SUBDIR = "plots"
+VIDEOS_SUBDIR = "videos"
+
+# La reanudacion se apoya en ficheros sentinela vacios: cuando un clip termina
+# una etapa, se crea tracking/.done_players/<clip> o .done_ball/<clip>. Asi el
+# pipeline sabe que clips ya estan acumulados en el master sin reprocesarlos ni
+# duplicar filas (no podemos inferirlo del master porque es un CSV concatenado).
+DONE_PLAYERS_DIRNAME = ".done_players"
+DONE_BALL_DIRNAME = ".done_ball"
+
+# Subcarpeta del flujo antiguo. Se conserva por compatibilidad con
+# reset_run_outputs, que ya no se usa en el flujo por defecto.
 HEATMAPS_SUBDIR = "heatmaps"
+
+# Video de predicciones.
+VIDEO_FPS = 30                    # fotogramas por segundo del mp4 de salida
+VIDEO_FOURCC = "mp4v"             # codec de cv2.VideoWriter (mp4v -> .mp4)
+MINIMAP_WIDTH_PX = 220            # ancho del minimapa cenital incrustado en el video
 
 # Nombre del fichero de cache de las esquinas de pista. Vive en la raiz de la
 # carpeta del game (outputs/<game>/court_points.json) y NUNCA se borra al

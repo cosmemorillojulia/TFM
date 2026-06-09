@@ -1,0 +1,71 @@
+22:42:05 | INFO    | main | Game: Dataset/game8 | salida: /workspace/TFM/outputs/game8
+22:42:05 | INFO    | src.pipeline.orchestrator | Game game8 | 9 clips: Clip1, Clip2, Clip3, Clip4, Clip5, Clip6, Clip7, Clip8, Clip9
+22:42:05 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip1 | 118 frames | 1280x720
+22:42:06 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolov8s.pt | clases COCO: 80
+22:42:06 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+22:42:11 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (236 filas).
+22:42:11 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip2 | 97 frames | 1280x720
+22:42:15 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (194 filas).
+22:42:15 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip3 | 413 frames | 1280x720
+22:42:30 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (826 filas).
+22:42:30 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip4 | 133 frames | 1280x720
+22:42:35 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip4 acumulado (266 filas).
+22:42:35 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip5 | 87 frames | 1280x720
+22:42:38 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip5 acumulado (174 filas).
+22:42:38 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip6 | 131 frames | 1280x720
+22:42:42 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip6 acumulado (262 filas).
+22:42:42 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip7 | 422 frames | 1280x720
+22:42:58 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip7 acumulado (844 filas).
+22:42:58 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip8 | 319 frames | 1280x720
+22:43:08 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip8 acumulado (638 filas).
+22:43:08 | INFO    | src.tracking.player_tracker | Jugadores | game8/Clip9 | 238 frames | 1280x720
+22:43:16 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip9 acumulado (476 filas).
+22:43:16 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+22:43:17 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 1, val_loss 0.00267)
+22:43:17 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip1 | 118 frames
+22:43:23 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip1 | detectada en 115/118 frames
+22:43:23 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (118 filas).
+22:43:23 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip2 | 97 frames
+22:43:28 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip2 | detectada en 90/97 frames
+22:43:28 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (97 filas).
+22:43:28 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip3 | 413 frames
+22:43:49 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip3 | detectada en 374/413 frames
+22:43:49 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (413 filas).
+22:43:49 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip4 | 133 frames
+22:43:56 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip4 | detectada en 131/133 frames
+22:43:56 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip4 acumulado (133 filas).
+22:43:56 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip5 | 87 frames
+22:44:01 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip5 | detectada en 77/87 frames
+22:44:01 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip5 acumulado (87 filas).
+22:44:01 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip6 | 131 frames
+22:44:07 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip6 | detectada en 108/131 frames
+22:44:07 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip6 acumulado (131 filas).
+22:44:07 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip7 | 422 frames
+22:44:29 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip7 | detectada en 411/422 frames
+22:44:29 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip7 acumulado (422 filas).
+22:44:29 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip8 | 319 frames
+22:44:45 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip8 | detectada en 305/319 frames
+22:44:45 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip8 acumulado (319 filas).
+22:44:46 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip9 | 238 frames
+22:44:59 | INFO    | src.tracking.ball_tracker | Pelota | game8/Clip9 | detectada en 234/238 frames
+22:44:59 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip9 acumulado (238 filas).
+22:44:59 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/game8/court_points.json
+22:44:59 | INFO    | src.geometry.homography | Homografia calculada | error reproyeccion medio 0.0000 m (max 0.0000 m)
+22:44:59 | INFO    | src.pipeline.orchestrator | Proyectadas 3916 filas de jugadores a player_real_coords.csv
+22:44:59 | INFO    | src.pipeline.orchestrator | Proyectadas 1958 filas de pelota a ball_real_coords.csv
+22:44:59 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game8/plots/player_bottom_heatmap.png
+22:45:00 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game8/plots/player_top_heatmap.png
+22:45:00 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/game8/plots/ball_bounces_map.png
+22:45:00 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/game8/plots/combined_view.png
+22:45:00 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/game8/plots
+22:45:04 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip1.mp4 (118 frames)
+22:45:07 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip2.mp4 (97 frames)
+22:45:21 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip3.mp4 (413 frames)
+22:45:25 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip4.mp4 (133 frames)
+22:45:28 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip5.mp4 (87 frames)
+22:45:33 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip6.mp4 (131 frames)
+22:45:47 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip7.mp4 (422 frames)
+22:45:58 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip8.mp4 (319 frames)
+22:46:06 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8/videos/Clip9.mp4 (238 frames)
+22:46:06 | INFO    | src.pipeline.orchestrator | Game game8 procesado. Resultados en /workspace/TFM/outputs/game8
+22:46:06 | INFO    | main | Hecho.

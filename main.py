@@ -7,13 +7,17 @@ Uso:
     python main.py --game-path Dataset/game1
     python main.py --game-path Dataset/game1 --output-dir outputs/game1_v2 --excel
 
+El pipeline es incremental y reanudable: nunca borra ni sobreescribe outputs
+existentes bajo --output-dir. Si una ejecucion anterior dejo resultados
+parciales, se continua desde donde se quedo. Usar distintos --output-dir sobre el
+mismo --game-path permite analizar el mismo game con varias configuraciones sin
+interferencias.
+
 Flujo (ver detalle en src/pipeline/orchestrator.py):
     1. Resolver la carpeta de salida del run (por defecto outputs/<game>).
-    2. Limpiar los artefactos de un run previo (preservando el cache de esquinas).
-    3. Procesar el game clip a clip:
-         jugadores -> players_master.csv   |   pelota -> ball_master.csv
-    4. Homografia del game -> proyectar a metros -> generar heatmaps.
-    5. (Opcional) exportar los CSV a Excel.
+    2. Procesar el game por etapas con cache (YOLO -> ball -> maps):
+         yolo/<clip>.csv  ->  ball/<clip>.csv  ->  maps/ + CSV agregados.
+    3. (Opcional) exportar los CSV agregados a Excel.
 """
 
 import argparse
@@ -23,7 +27,6 @@ from pathlib import Path
 
 import config
 from src.pipeline import orchestrator
-from src.utils import io
 
 
 def parse_args(argv=None):
@@ -37,8 +40,11 @@ def parse_args(argv=None):
     )
     parser.add_argument(
         "--output-dir", default=None,
-        help="Carpeta de salida del run. Por defecto: outputs/<nombre_del_game>. "
-             "Si ya existe, se reescriben sus CSV y heatmaps (el cache de esquinas se conserva).",
+        help="Nombre de la carpeta de salida (no ruta). Siempre se crea bajo "
+             "OUTPUTS_ROOT (/workspace/TFM/outputs). Solo se usa su ultimo segmento: "
+             "'/workspace/outputs/game8' -> OUTPUTS_ROOT/game8. Por defecto: "
+             "OUTPUTS_ROOT/<nombre_del_game>. El pipeline es reanudable: reutiliza "
+             "lo ya generado y no borra nada.",
     )
     parser.add_argument(
         "--excel", action="store_true",
@@ -53,12 +59,19 @@ def parse_args(argv=None):
 
 
 def resolve_output_dir(game_path, output_dir):
-    """Determina la carpeta de salida del run.
+    """Determina la carpeta de salida del run, siempre bajo ``OUTPUTS_ROOT``.
 
-    Si el usuario no pasa ``--output-dir``, se usa ``outputs/<nombre_del_game>``.
+    La salida vive SIEMPRE dentro de ``OUTPUTS_ROOT`` (``/workspace/TFM/outputs``):
+
+    - Sin ``--output-dir``: ``OUTPUTS_ROOT/<nombre_del_game>``.
+    - Con ``--output-dir``: se ancla bajo ``OUTPUTS_ROOT`` usando solo el ULTIMO
+      segmento del valor pasado. Asi, ``--output-dir /workspace/outputs/game8`` o
+      ``--output-dir game8_v2`` acaban en ``OUTPUTS_ROOT/game8`` y
+      ``OUTPUTS_ROOT/game8_v2`` respectivamente. Esto evita escribir fuera del
+      proyecto por error (p.ej. en ``/workspace/outputs``).
     """
     if output_dir:
-        return Path(output_dir)
+        return config.OUTPUTS_ROOT / Path(output_dir).name
     return config.OUTPUTS_ROOT / Path(game_path).name
 
 
@@ -67,7 +80,8 @@ def _setup_logging(level, log_file):
     handlers = [logging.StreamHandler()]
     if log_file is not None:
         log_file.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(logging.FileHandler(log_file, mode="w", encoding="utf-8"))
+        # Modo append: el pipeline es reanudable, no se borra el log de runs previos.
+        handlers.append(logging.FileHandler(log_file, mode="a", encoding="utf-8"))
     logging.basicConfig(
         level=getattr(logging, level),
         format="%(asctime)s | %(levelname)-7s | %(name)s | %(message)s",
@@ -93,10 +107,9 @@ def main(argv=None):
     logger = logging.getLogger("main")
     logger.info("Game: %s | salida: %s", game_path, output_dir)
 
-    # Preparar la carpeta de salida (borra artefactos del run previo, conserva esquinas).
-    io.reset_run_outputs(output_dir)
-
-    # Ejecutar todo el flujo del game.
+    # Ejecutar el flujo incremental/reanudable del game. No se borra nada:
+    # las etapas ya completas se saltan y solo se computa lo que falte.
+    output_dir.mkdir(parents=True, exist_ok=True)
     orchestrator.run_game(game_path, output_dir, export_excel=args.excel)
 
     logger.info("Hecho.")
