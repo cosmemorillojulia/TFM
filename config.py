@@ -6,20 +6,30 @@ este fichero. Los valores se han portado tal cual de las celdas de
 configuracion de los notebooks originales (ahora en ``old_notebooks/``).
 """
 
+import os
 from pathlib import Path
 
 # ===========================================================================
 # Rutas base
 # ===========================================================================
+# En local las tres rutas se resuelven relativas al proyecto.
+# En cloud (Colab, Kaggle, Lightning…) se pueden sobreescribir mediante
+# variables de entorno antes de lanzar el script:
+#
+#   export TFM_PROJECT_ROOT=/content/ProyectoTFM
+#   export TFM_DATASET_ROOT=/content/drive/MyDrive/TFM/Dataset
+#   export TFM_OUTPUTS_ROOT=/content/drive/MyDrive/TFM/outputs
+#
+# Solo hace falta definir las que difieren del default local.
 
 # Raiz del proyecto (carpeta que contiene este fichero).
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(os.environ.get("TFM_PROJECT_ROOT", Path(__file__).resolve().parent))
 
 # Dataset TrackNet de tenis (no versionado). Estructura: gameN/ClipM/{*.jpg, Label.csv}.
-DATASET_ROOT = PROJECT_ROOT / "Dataset"
+DATASET_ROOT = Path(os.environ.get("TFM_DATASET_ROOT", PROJECT_ROOT / "Dataset"))
 
 # Raiz de salidas. Dentro vive el modelo global y una carpeta por game procesado.
-OUTPUTS_ROOT = PROJECT_ROOT / "outputs"
+OUTPUTS_ROOT = Path(os.environ.get("TFM_OUTPUTS_ROOT", PROJECT_ROOT / "outputs"))
 
 # Modelo TrackNet ya entrenado. Es GLOBAL y compartido entre ejecuciones; el
 # proyecto solo lo carga para inferencia (aqui NO se entrena).
