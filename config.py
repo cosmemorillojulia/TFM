@@ -89,9 +89,9 @@ RUN_LOG_FILENAME = "run.log"
 # ===========================================================================
 
 # Modelo YOLO y parametros de inferencia.
-# imgsz=960: buen compromiso CPU (~1.8x mas rapido que 1280).
-# Si va lento: baja a 640. Si hay GPU: sube a 1280.
-YOLO_MODEL = "yolov8s.pt"
+# yolo11m: mejor deteccion de personas que yolov8s; en GPU (L4) va sobrado.
+# imgsz=960: buen compromiso. Con GPU se puede subir a 1280; en CPU bajar a 640.
+YOLO_MODEL = "yolo11m.pt"
 IMGSZ = 960
 PERSON_CLASS_ID = 0
 CONF_THRESHOLD = 0.35
@@ -122,6 +122,24 @@ EXCLUSION_ZONES = [
     # (cuyo pie cae aprox. al 18-22% Y).
     [0.32, 0.10, 0.68, 0.14],
 ]
+
+# ---------------------------------------------------------------------------
+# Filtro temporal de jugadores (distingue jugadores de jueces por movimiento).
+# ---------------------------------------------------------------------------
+# Idea: a lo largo de un clip los jugadores recorren metros, mientras los jueces
+# de silla/linea y recogepelotas permanecen casi estaticos. Acumulando las
+# detecciones por track_id de ByteTrack y midiendo el desplazamiento total del
+# punto de pie, los jueces (poco movimiento) se descartan sin depender solo de
+# zonas hardcodeadas.
+
+# Desplazamiento minimo del punto de pie (en fraccion de la diagonal de la
+# imagen) para que un track se considere candidato a jugador. Un juez de silla
+# se mueve muy por debajo de esto; un jugador, muy por encima.
+MIN_TRACK_DISPLACEMENT_FRAC = 0.08
+
+# Fraccion minima de frames del clip en los que el track debe aparecer. Filtra
+# tracks fugaces (recogepelotas que cruzan, falsos positivos intermitentes).
+MIN_TRACK_PRESENCE_FRAC = 0.15
 
 
 # ===========================================================================
