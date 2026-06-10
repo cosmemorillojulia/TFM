@@ -273,3 +273,7 @@
 00:32:21 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8_YOLO11/videos/Clip5.mp4 (87 frames)
 00:32:24 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8_YOLO11/videos/Clip6.mp4 (131 frames)
 00:32:34 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8_YOLO11/videos/Clip7.mp4 (422 frames)
+00:32:42 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8_YOLO11/videos/Clip8.mp4 (319 frames)
+00:32:48 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game8_YOLO11/videos/Clip9.mp4 (238 frames)
+00:32:48 | INFO    | src.pipeline.orchestrator | Game game8 procesado. Resultados en /workspace/TFM/outputs/game8_YOLO11
+00:32:48 | INFO    | main | Hecho.
