@@ -1,8 +1,22 @@
 ﻿Dataset/
 Dataset.zip
-yolov8s.pt
 .vscode/
 .claude/
 desktop.ini
 **/desktop.ini
 Easy_Demo_CV_With_Pretrained_YOLO.ipynb
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Modelos entrenados
+*.pt
+*.pth
+*.onnx
+*.h5
+*.weights
+
+# Outputs generados
+outputs/
