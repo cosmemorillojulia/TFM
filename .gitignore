@@ -11,12 +11,4 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Modelos entrenados
-*.pt
-*.pth
-*.onnx
-*.h5
-*.weights
-
-# Outputs generados
-outputs/
+yolov8s.pt
