@@ -253,46 +253,53 @@ def track_clip(clip_dir):
     sampled_frames = frames[::config.FRAME_STEP]
     sampled_indices = list(range(0, len(frames), config.FRAME_STEP))
 
-    results_iter = model.track(
-        source=[str(p) for p in sampled_frames],
-        classes=[config.PERSON_CLASS_ID],
-        conf=config.CONF_THRESHOLD,
-        iou=config.IOU_THRESHOLD,
-        imgsz=config.IMGSZ,
-        tracker=config.TRACKER_CFG,
-        device=device,
-        persist=True,
-        stream=True,
-        verbose=False,
-    )
-
     # ---- Fase A: recoger TODAS las detecciones validas del clip (con track_id) ----
+    # Se procesa en LOTES de YOLO_BATCH frames. Pasar la lista completa de un clip
+    # largo (400+ frames) a model.track apilaba todo en VRAM y provocaba CUDA OOM
+    # con yolo11m. Por lote pequeno el pico de memoria se acota; persist=True
+    # mantiene la continuidad de los track_id de ByteTrack entre lotes.
     records = []
-    for enum_idx, result in enumerate(results_iter):
-        frame_idx = sampled_indices[enum_idx]
-        boxes = result.boxes
-        if boxes is None or len(boxes) == 0:
-            continue
-        xyxy = boxes.xyxy.cpu().numpy()
-        conf = boxes.conf.cpu().numpy()
-        ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
-        if ids is None:
-            # Sin track_id no se puede aplicar el filtro temporal; saltar el frame.
-            continue
-        area_vals = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
+    batch = config.YOLO_BATCH
+    for start in range(0, len(sampled_frames), batch):
+        chunk = sampled_frames[start:start + batch]
+        chunk_indices = sampled_indices[start:start + batch]
+        results_iter = model.track(
+            source=[str(p) for p in chunk],
+            classes=[config.PERSON_CLASS_ID],
+            conf=config.CONF_THRESHOLD,
+            iou=config.IOU_THRESHOLD,
+            imgsz=config.IMGSZ,
+            tracker=config.TRACKER_CFG,
+            device=device,
+            persist=True,
+            stream=True,
+            verbose=False,
+        )
+        for enum_idx, result in enumerate(results_iter):
+            frame_idx = chunk_indices[enum_idx]
+            boxes = result.boxes
+            if boxes is None or len(boxes) == 0:
+                continue
+            xyxy = boxes.xyxy.cpu().numpy()
+            conf = boxes.conf.cpu().numpy()
+            ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
+            if ids is None:
+                # Sin track_id no se puede aplicar el filtro temporal; saltar.
+                continue
+            area_vals = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
 
-        for i in _valid_detections(xyxy, area_vals, bands):
-            x1, y1, x2, y2 = xyxy[i]
-            records.append({
-                "clip": key,
-                "frame": frame_idx,
-                "player_id": int(ids[i]),
-                "foot_x": float((x1 + x2) / 2),
-                "foot_y": float(y2),
-                "bbox_x1": float(x1), "bbox_y1": float(y1),
-                "bbox_x2": float(x2), "bbox_y2": float(y2),
-                "confidence": float(conf[i]),
-            })
+            for i in _valid_detections(xyxy, area_vals, bands):
+                x1, y1, x2, y2 = xyxy[i]
+                records.append({
+                    "clip": key,
+                    "frame": frame_idx,
+                    "player_id": int(ids[i]),
+                    "foot_x": float((x1 + x2) / 2),
+                    "foot_y": float(y2),
+                    "bbox_x1": float(x1), "bbox_y1": float(y1),
+                    "bbox_x2": float(x2), "bbox_y2": float(y2),
+                    "confidence": float(conf[i]),
+                })
 
     df_all = pd.DataFrame.from_records(records)
     if df_all.empty:

@@ -31,31 +31,8 @@ _PLAYER_COLORS = {
     "player_bottom": (0, 165, 255),   # orange
 }
 _DEFAULT_PLAYER_COLOR = (255, 0, 255)
-_COURT_LINE_COLOR = (255, 255, 255)
 _BALL_COLOR = (0, 255, 255)
 _BOUNCE_COLOR = (0, 0, 255)
-
-
-def _project_court_lines_to_frame(homography_matrix):
-    """Proyecta las lineas de pista (metros) a pixeles con la homografia inversa.
-
-    Returns:
-        Lista de pares ``((x0, y0), (x1, y1))`` en pixeles (enteros).
-    """
-    h_inv = homography.invert_homography(homography_matrix)
-    lines_px = []
-    for (p0, p1) in homography.court_lines_world():
-        pts = homography.project_points([p0, p1], h_inv)
-        (x0, y0), (x1, y1) = pts
-        lines_px.append(((int(round(x0)), int(round(y0))),
-                         (int(round(x1)), int(round(y1)))))
-    return lines_px
-
-
-def _draw_court_lines(frame, lines_px):
-    """Dibuja las lineas de pista proyectadas sobre el frame."""
-    for (p0, p1) in lines_px:
-        cv2.line(frame, p0, p1, _COURT_LINE_COLOR, 2, cv2.LINE_AA)
 
 
 def _draw_players(frame, rows):
@@ -98,9 +75,14 @@ class _Minimap:
 
     def __init__(self, homography_matrix, width_px=None):
         self.h = homography_matrix
-        margin = 1.0  # metros de margen alrededor de la pista en el minimapa
-        self.x_min, self.x_max = -margin, config.COURT_WIDTH + margin
-        self.y_min, self.y_max = -margin, config.COURT_LENGTH + margin
+        # Margenes (metros) alrededor de la pista. El margen de fondo (Y) es mayor
+        # porque los jugadores sacan/restan bastante por detras de la linea de
+        # fondo; el lateral (X) puede ser menor. Se reutilizan MARGIN_Y/MARGIN_X
+        # de config (los mismos del canvas de heatmaps).
+        margin_x = config.MINIMAP_MARGIN_X
+        margin_y = config.MINIMAP_MARGIN_Y
+        self.x_min, self.x_max = -margin_x, config.COURT_WIDTH + margin_x
+        self.y_min, self.y_max = -margin_y, config.COURT_LENGTH + margin_y
         w_m = self.x_max - self.x_min
         h_m = self.y_max - self.y_min
         self.w = width_px or config.MINIMAP_WIDTH_PX
@@ -109,8 +91,11 @@ class _Minimap:
         self._base = self._render_base()
 
     def _to_px(self, x_m, y_m):
+        # Rotacion 180° (invierte X e Y) MAS volteo horizontal (invierte X otra
+        # vez). El doble flip de X se cancela, asi que el resultado neto es:
+        # X normal, Y invertido.
         px = int(round((x_m - self.x_min) * self.scale))
-        py = int(round((y_m - self.y_min) * self.scale))
+        py = int(round((self.y_max - y_m) * self.scale))
         return px, py
 
     def _render_base(self):
@@ -123,27 +108,32 @@ class _Minimap:
     def render(self, player_world, ball_world):
         """Devuelve una copia del minimapa con jugadores y pelota dibujados.
 
+        Jugadores como cuadrados; pelota como circulo.
+
         Args:
             player_world: lista de ``(x_m, y_m, label)`` de jugadores.
             ball_world: ``(x_m, y_m)`` de la pelota o ``None``.
         """
         mini = self._base.copy()
+        half = 4  # semilado del cuadrado del jugador (px)
         for (x_m, y_m, label) in player_world:
-            cv2.circle(mini, self._to_px(x_m, y_m), 4,
-                       _PLAYER_COLORS.get(label, _DEFAULT_PLAYER_COLOR), -1, cv2.LINE_AA)
+            cx, cy = self._to_px(x_m, y_m)
+            color = _PLAYER_COLORS.get(label, _DEFAULT_PLAYER_COLOR)
+            cv2.rectangle(mini, (cx - half, cy - half), (cx + half, cy + half), color, -1)
         if ball_world is not None:
             cv2.circle(mini, self._to_px(*ball_world), 3, _BALL_COLOR, -1, cv2.LINE_AA)
         return mini
 
 
 def _overlay_minimap(frame, mini):
-    """Pega el minimapa en la esquina superior derecha del frame con un borde."""
+    """Pega el minimapa opaco en el lado derecho, centrado verticalmente."""
     fh, fw = frame.shape[:2]
     mh, mw = mini.shape[:2]
     pad = 10
-    x0, y0 = fw - mw - pad, pad
-    cv2.rectangle(frame, (x0 - 2, y0 - 2), (x0 + mw + 2, y0 + mh + 2), (255, 255, 255), 1)
+    x0 = fw - mw - pad
+    y0 = (fh - mh) // 2          # centrado verticalmente en el lado derecho
     frame[y0:y0 + mh, x0:x0 + mw] = mini
+    cv2.rectangle(frame, (x0 - 2, y0 - 2), (x0 + mw + 2, y0 + mh + 2), (255, 255, 255), 1)
 
 
 def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix, out_path):
@@ -166,7 +156,6 @@ def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix
     out_path.parent.mkdir(parents=True, exist_ok=True)
     writer = cv2.VideoWriter(str(out_path), fourcc, config.VIDEO_FPS, (w, h))
 
-    lines_px = _project_court_lines_to_frame(homography_matrix)
     minimap = _Minimap(homography_matrix)
 
     # Indexar filas por frame para acceso O(1) en el bucle.
@@ -177,7 +166,6 @@ def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix
 
     for idx, fp in enumerate(frames):
         frame = cv2.imread(str(fp))
-        _draw_court_lines(frame, lines_px)
 
         rows = players_by_frame.get(idx, [])
         _draw_players(frame, rows)

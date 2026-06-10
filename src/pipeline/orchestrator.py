@@ -70,8 +70,8 @@ def check_stage(output_dir, clip, stage):
 
     Args:
         output_dir: carpeta de salida del run.
-        clip: directorio del clip (para ``players``/``ball``) o ``None`` (para
-            ``final``, que es a nivel de game).
+        clip: directorio del clip (para ``players``/``ball``) o la LISTA de clips
+            del game (para ``final``, que comprueba un video por clip).
         stage: ``"players"``, ``"ball"`` o ``"final"``.
 
     Returns:
@@ -83,13 +83,18 @@ def check_stage(output_dir, clip, stage):
     if stage == "ball":
         return io.is_clip_done(p["done_ball"], Path(clip).name)
     if stage == "final":
-        # La etapa final se considera completa si existen los CSV proyectados y
-        # la vista combinada de los plots.
-        return (
+        # La etapa final se considera completa si existen los CSV proyectados, la
+        # vista combinada de los plots Y un video por cada clip. ``clip`` aqui es
+        # la lista de clips del game (no un directorio), para poder contar videos.
+        csv_plots_ok = (
             p["player_real"].exists()
             and p["ball_real"].exists()
             and (p["plots"] / "combined_view.png").exists()
         )
+        if not csv_plots_ok:
+            return False
+        clips = clip or []
+        return all((p["videos"] / f"{Path(c).name}.mp4").exists() for c in clips)
     raise ValueError(f"Etapa desconocida: {stage!r} (usa 'players', 'ball' o 'final').")
 
 
@@ -115,7 +120,7 @@ def run_game(game_path, output_dir, export_excel=False):
     # ---- Cortocircuito: todo completo ----
     all_players = all(check_stage(output_dir, c, "players") for c in clips)
     all_ball = all(check_stage(output_dir, c, "ball") for c in clips)
-    final_done = check_stage(output_dir, None, "final")
+    final_done = check_stage(output_dir, clips, "final")
     if all_players and all_ball and final_done:
         logger.info("Nada que hacer: todas las etapas ya estan completas en %s.", output_dir)
         return
@@ -154,7 +159,7 @@ def run_game(game_path, output_dir, export_excel=False):
             "Vuelve a lanzar para completar.", len(pendientes), ", ".join(pendientes))
         return
 
-    if check_stage(output_dir, None, "final"):
+    if check_stage(output_dir, clips, "final"):
         logger.info("[FINAL] Proyecciones, plots y videos ya generados; se salta.")
     else:
         _finalize(game_path, clips, output_dir, p)

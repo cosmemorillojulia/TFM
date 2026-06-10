@@ -59,9 +59,14 @@ DONE_BALL_DIRNAME = ".done_ball"
 HEATMAPS_SUBDIR = "heatmaps"
 
 # Video de predicciones.
-VIDEO_FPS = 30                    # fotogramas por segundo del mp4 de salida
+VIDEO_FPS = 25                    # fotogramas por segundo del mp4 de salida
 VIDEO_FOURCC = "mp4v"             # codec de cv2.VideoWriter (mp4v -> .mp4)
-MINIMAP_WIDTH_PX = 220            # ancho del minimapa cenital incrustado en el video
+MINIMAP_WIDTH_PX = 130            # ancho del minimapa cenital incrustado en el video
+MINIMAP_ALPHA = 0.55              # opacidad del minimapa (0=invisible, 1=opaco)
+# Margenes (metros) del minimapa. Y (fondo) mayor que X (lateral) porque los
+# jugadores sacan/restan por detras de la linea de fondo y se saldrian del mapa.
+MINIMAP_MARGIN_Y = 5.0
+MINIMAP_MARGIN_X = 2.0
 
 # Nombre del fichero de cache de las esquinas de pista. Vive en la raiz de la
 # carpeta del game (outputs/<game>/court_points.json) y NUNCA se borra al
@@ -97,6 +102,12 @@ PERSON_CLASS_ID = 0
 CONF_THRESHOLD = 0.35
 IOU_THRESHOLD = 0.5
 TRACKER_CFG = "bytetrack.yaml"
+
+# Tamano de lote para la inferencia YOLO. Los frames de un clip se procesan en
+# grupos de este tamano para acotar el pico de VRAM (pasar el clip entero de
+# golpe provocaba CUDA OOM en clips largos con yolo11m). 32 es seguro en una L4
+# de 22GB; subir acelera algo a costa de mas memoria, bajar si sigue habiendo OOM.
+YOLO_BATCH = 32
 
 # Submuestreo de frames. FRAME_STEP=1 procesa todos los frames; valores mayores
 # aceleran la inferencia y los frames saltados se reconstruyen por interpolacion.
