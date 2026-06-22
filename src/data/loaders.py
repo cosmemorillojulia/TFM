@@ -1,21 +1,19 @@
-"""Carga de datos del dataset TrackNet de tenis.
+"""Carga de datos del dataset de tenis.
 
-Funciones para descubrir los clips de un game, listar los frames de un clip en
-orden y leer el ``Label.csv`` de etiquetas de la pelota. Logica portada de las
-celdas de exploracion de ``01_player_tracking`` y ``02_ball_tracking``.
+Funciones para descubrir los clips de un game (subcarpetas con frames .jpg) y
+listar los frames de un clip en orden. Logica portada de las celdas de
+exploracion de ``01_player_tracking`` y ``02_ball_tracking``.
 """
 
 import re
 from pathlib import Path
-
-import pandas as pd
 
 # Un frame es un fichero NNNN.jpg (p.ej. 0000.jpg, 0153.jpg).
 _FRAME_RE = re.compile(r"^\d+\.jpg$", re.IGNORECASE)
 
 
 def list_clips(game_path):
-    """Devuelve los directorios de clips de un game que tienen ``Label.csv``.
+    """Devuelve los directorios de clips de un game (subcarpetas con frames .jpg).
 
     Args:
         game_path: ruta a la carpeta de un game (p.ej. ``Dataset/game1``).
@@ -30,7 +28,7 @@ def list_clips(game_path):
 
     clips = [
         d for d in game_path.iterdir()
-        if d.is_dir() and (d / "Label.csv").exists()
+        if d.is_dir() and list_frames(d)
     ]
     # Orden natural por el numero del nombre del clip ("Clip2" antes que "Clip10").
     clips.sort(key=lambda d: _clip_number(d.name))
@@ -56,25 +54,6 @@ def list_frames(clip_dir):
     files = [p for p in clip_dir.iterdir() if _FRAME_RE.match(p.name)]
     files.sort(key=lambda p: int(p.stem))
     return files
-
-
-def load_labels(clip_dir):
-    """Lee el ``Label.csv`` de un clip con las columnas saneadas.
-
-    El CSV tiene columnas: ``file name, visibility, x-coordinate,
-    y-coordinate, status`` (status=1 marca rebote). Se hace ``strip`` de los
-    nombres de columna porque en el dataset original llevan espacios.
-
-    Args:
-        clip_dir: ruta a la carpeta de un clip.
-
-    Returns:
-        ``pandas.DataFrame`` con las etiquetas del clip.
-    """
-    clip_dir = Path(clip_dir)
-    df = pd.read_csv(clip_dir / "Label.csv")
-    df.columns = [col.strip() for col in df.columns]
-    return df
 
 
 def clip_key(clip_dir):

@@ -25,7 +25,7 @@ from pathlib import Path
 # Raiz del proyecto (carpeta que contiene este fichero).
 PROJECT_ROOT = Path(os.environ.get("TFM_PROJECT_ROOT", Path(__file__).resolve().parent))
 
-# Dataset TrackNet de tenis (no versionado). Estructura: gameN/ClipM/{*.jpg, Label.csv}.
+# Dataset de tenis (no versionado). Estructura: gameN/ClipM/{*.jpg}.
 DATASET_ROOT = Path(os.environ.get("TFM_DATASET_ROOT", PROJECT_ROOT / "Dataset"))
 
 # Raiz de salidas. Dentro vive el modelo global y una carpeta por game procesado.

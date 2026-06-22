@@ -1,0 +1,33 @@
+23:00:44 | INFO    | main | Game: Dataset/game | salida: /workspace/TFM/outputs/game_test1
+23:06:55 | INFO    | main | Game: Dataset/game | salida: /workspace/TFM/outputs/game_test1
+23:06:55 | INFO    | src.pipeline.orchestrator | Game game | 1 clips: Clip1
+23:06:55 | INFO    | src.tracking.player_tracker | Jugadores | game/Clip1 | 601 frames | 1280x720
+23:06:56 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+23:06:56 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+23:07:13 | INFO    | src.tracking.player_tracker | Jugadores | game/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+23:07:13 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (1202 filas).
+23:07:13 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+23:07:14 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 8, val_loss 0.00153)
+23:07:14 | INFO    | src.tracking.ball_tracker | Pelota | game/Clip1 | 601 frames
+23:07:39 | INFO    | src.tracking.ball_tracker | Pelota | game/Clip1 | detectada en 598/601 frames
+23:07:39 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (601 filas).
+23:07:39 | INFO    | src.geometry.homography | No hay cache de esquinas en /workspace/TFM/outputs/game_test1/court_points.json; abriendo seleccion interactiva.
+23:07:39 | INFO    | src.geometry.homography | Entorno headless detectado. Abre http://0.0.0.0:7860 en tu navegador para seleccionar las esquinas de game y pulsa Guardar.
+23:08:34 | INFO    | main | Game: Dataset/game | salida: /workspace/TFM/outputs/game_test1
+23:08:34 | INFO    | src.pipeline.orchestrator | Game game | 1 clips: Clip1
+23:08:34 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 ya procesado; se salta.
+23:08:34 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 ya procesado; se salta.
+23:08:34 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/game_test1/court_points.json
+23:08:34 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0488 m (max 0.1327 m)
+23:08:34 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 31
+23:08:34 | INFO    | src.pipeline.orchestrator | Proyectadas 1202 filas de jugadores a player_real_coords.csv
+23:08:34 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 13 | fuera: 18
+23:08:34 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 31 -> ball_real_coords.csv
+23:08:35 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game_test1/plots/player_bottom_heatmap.png
+23:08:35 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game_test1/plots/player_top_heatmap.png
+23:08:36 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/game_test1/plots/ball_bounces_map.png
+23:08:36 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/game_test1/plots/combined_view.png
+23:08:36 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/game_test1/plots
+23:08:50 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game_test1/videos/Clip1.mp4 (601 frames)
+23:08:50 | INFO    | src.pipeline.orchestrator | Game game procesado. Resultados en /workspace/TFM/outputs/game_test1
+23:08:50 | INFO    | main | Hecho.

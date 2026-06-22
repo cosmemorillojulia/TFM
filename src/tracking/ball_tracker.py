@@ -8,9 +8,8 @@ en ``old_notebooks/02-0_model_ball_train.ipynb``.
 Para cada frame se apilan los ``N_INPUT_FRAMES`` ultimos frames (ventana
 deslizante) como tensor de 9 canales a 640x360, se predice el heatmap y se toma
 el pixel de maxima activacion como posicion de la pelota (si supera el umbral).
-Las coordenadas se devuelven en la resolucion original del frame. El flag
-``is_bounce`` se toma de la columna ``status`` del ``Label.csv`` del clip, igual
-que hacia el notebook 02.
+Las coordenadas se devuelven en la resolucion original del frame. El bote real
+se detecta aparte, a partir de la trayectoria (ver ``detect_real_bounces``).
 
 Logica portada de ``old_notebooks/02_ball_tracking.ipynb`` (carga del checkpoint
 e inferencia).
@@ -94,8 +93,8 @@ def infer_clip(clip_dir):
 
     Returns:
         ``DataFrame`` con una fila por frame y columnas:
-        ``clip, frame, ball_x, ball_y, visibility, is_bounce``. En los frames sin
-        pelota detectada (o en los primeros ``N_INPUT_FRAMES - 1``, que aun no
+        ``clip, frame, ball_x, ball_y, visibility``. En los frames sin pelota
+        detectada (o en los primeros ``N_INPUT_FRAMES - 1``, que aun no
         completan ventana) ``ball_x``/``ball_y`` van a NaN y ``visibility=0``.
     """
     clip_dir = loaders.Path(clip_dir)
@@ -108,11 +107,6 @@ def infer_clip(clip_dir):
     model = _get_model()
     device = _get_device()
     logger.info("Pelota | %s | %d frames", key, len(frames))
-
-    # Mapa file -> status para el flag de rebote (ground truth del dataset).
-    labels = loaders.load_labels(clip_dir)
-    labels["status"] = labels["status"].fillna(0).astype(int)
-    status_map = dict(zip(labels["file name"], labels["status"]))
 
     rows = []
     window = []
@@ -145,7 +139,6 @@ def infer_clip(clip_dir):
             "ball_x": ball_x,
             "ball_y": ball_y,
             "visibility": vis,
-            "is_bounce": int(status_map.get(fp.name, 0)),
         })
 
     df = pd.DataFrame(rows)
@@ -155,11 +148,15 @@ def infer_clip(clip_dir):
 
 
 def detect_real_bounces(df_ball, min_prominence=20, min_distance=8):
-    """Detecta botes reales en el suelo por análisis de trayectoria.
+    """Detecta botes reales en el suelo por cambio de signo de la velocidad vertical.
 
-    Un bote real es un máximo local prominente de ``ball_y`` (mayor Y en píxeles
-    = posición más baja en imagen = pelota más cerca del suelo). Se ignoran los
-    valores ``is_bounce`` del CSV original, que mezclan golpes con raqueta y botes.
+    Un bote real es un frame donde la pelota pasa de bajar a subir bruscamente:
+    ``ball_y`` (Y en píxeles, crece hacia abajo en la imagen) tiene velocidad
+    positiva (bajando) justo antes y negativa (subiendo) justo después. Este
+    criterio es más robusto que un simple máximo local de ``ball_y``: un golpe de
+    raqueta en el aire suele frenar/redirigir la pelota de forma más gradual,
+    mientras que el bote en el suelo produce un cambio de velocidad más abrupto
+    (mayor prominencia).
 
     El resultado se añade como columna ``is_real_bounce`` (0/1) al DataFrame.
 
@@ -181,27 +178,66 @@ def detect_real_bounces(df_ball, min_prominence=20, min_distance=8):
 
     y = visible["ball_y"].values
     idx = visible.index.values
+    vy = np.diff(y)   # velocidad vertical entre frames consecutivos (visibles)
 
+    last_bounce_idx = None
     for i in range(1, len(y) - 1):
-        # Máximo local: ball_y mayor que sus vecinos inmediatos
-        if y[i] <= y[i - 1] or y[i] <= y[i + 1]:
+        # Cambio de signo: bajando (vy>0) antes, subiendo (vy<0) despues.
+        if not (vy[i - 1] > 0 and vy[i] < 0):
             continue
 
-        # Prominencia: diferencia con el valle más alto a cada lado
-        left_min  = y[:i].min()  if i > 0          else y[i]
-        right_min = y[i+1:].min() if i < len(y) - 1 else y[i]
+        # Prominencia: diferencia con el valle (menor ball_y) mas alto a cada lado.
+        left_min  = y[:i].min()
+        right_min = y[i + 1:].min() if i < len(y) - 1 else y[i]
         prominence = y[i] - max(left_min, right_min)
         if prominence < min_prominence:
             continue
 
-        # Distancia mínima al bote real anterior ya marcado
-        already = df[df["is_real_bounce"] == 1].index
-        if len(already) > 0:
-            if (idx[i] - already[-1]) < min_distance:
-                continue
+        # Distancia minima al bote real anterior ya marcado.
+        if last_bounce_idx is not None and (idx[i] - last_bounce_idx) < min_distance:
+            continue
 
         df.at[idx[i], "is_real_bounce"] = 1
+        last_bounce_idx = idx[i]
 
     n = int(df["is_real_bounce"].sum())
     logger.info("Botes reales detectados: %d", n)
+    return df
+
+
+def classify_bounce_location(df_ball, court_width, court_length, margin=0.0):
+    """Clasifica cada bote real como dentro o fuera de las lineas de pista.
+
+    Requiere que ``df_ball`` ya tenga las columnas ``ball_real_x``/``ball_real_y``
+    (proyeccion a metros) y ``is_real_bounce``. Un bote es "dentro" si su punto
+    cae en ``[0, court_width] x [0, court_length]`` (mas el margen opcional);
+    en caso contrario es "fuera" (winner/out). Los frames que no son bote real
+    quedan con ``bounce_in`` en NaN.
+
+    Args:
+        df_ball: DataFrame con ``ball_real_x``, ``ball_real_y``, ``is_real_bounce``.
+        court_width, court_length: dimensiones de la pista en metros.
+        margin: tolerancia en metros para contar como "dentro" (por defecto 0,
+            es decir, exactamente las lineas de pista).
+
+    Returns:
+        Copia del DataFrame con la columna ``bounce_in`` (1=dentro, 0=fuera,
+        NaN=no es bote) añadida.
+    """
+    df = df_ball.copy()
+    df["bounce_in"] = np.nan
+
+    mask = df["is_real_bounce"] == 1
+    if not mask.any():
+        return df
+
+    x = df.loc[mask, "ball_real_x"]
+    y = df.loc[mask, "ball_real_y"]
+    inside = (x >= -margin) & (x <= court_width + margin) & \
+             (y >= -margin) & (y <= court_length + margin)
+    df.loc[mask, "bounce_in"] = inside.astype(int)
+
+    n_in = int(inside.sum())
+    n_out = int((~inside).sum())
+    logger.info("Botes clasificados | dentro: %d | fuera: %d", n_in, n_out)
     return df

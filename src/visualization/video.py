@@ -59,7 +59,7 @@ def _draw_ball(frame, ball_row):
     if np.isnan(ball_row["ball_x"]) or np.isnan(ball_row["ball_y"]):
         return
     cx, cy = int(ball_row["ball_x"]), int(ball_row["ball_y"])
-    if ball_row.get("is_bounce", 0) == 1:
+    if ball_row.get("is_real_bounce", 0) == 1:
         cv2.circle(frame, (cx, cy), 10, _BOUNCE_COLOR, 2, cv2.LINE_AA)
         cv2.putText(frame, "BOTE", (cx + 12, cy),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, _BOUNCE_COLOR, 1, cv2.LINE_AA)

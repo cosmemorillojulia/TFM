@@ -113,7 +113,7 @@ def run_game(game_path, output_dir, export_excel=False):
     # ---- Descubrir clips ----
     clips = loaders.list_clips(game_path)
     if not clips:
-        raise FileNotFoundError(f"El game {game_path} no contiene clips con Label.csv.")
+        raise FileNotFoundError(f"El game {game_path} no contiene clips con frames .jpg.")
     logger.info("Game %s | %d clips: %s",
                 game_path.name, len(clips), ", ".join(c.name for c in clips))
 
@@ -223,16 +223,16 @@ def _project_masters(df_players, df_ball, p, homography_matrix):
         df_ball_proj = homography.project_dataframe(
             df_ball, "ball_x", "ball_y", "ball_real_x", "ball_real_y", homography_matrix,
         )
-        has_real = "is_real_bounce" in df_ball_proj.columns
-        real_col = "is_real_bounce" if has_real else "is_bounce"
-        ball_out = (df_ball_proj[df_ball_proj[real_col] == 1]
-                    [["clip", "frame", "ball_real_x", "ball_real_y", real_col]])
+        df_ball_proj = ball_tracker.classify_bounce_location(
+            df_ball_proj, config.COURT_WIDTH, config.COURT_LENGTH)
+        out_cols = ["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce", "bounce_in"]
+        ball_out = df_ball_proj[df_ball_proj["is_real_bounce"] == 1][out_cols]
         io.write_csv(ball_out, p["ball_real"])
         logger.info("Botes reales proyectados: %d -> %s", len(ball_out), config.BALL_REAL_CSV)
     else:
         df_ball_proj = df_ball
         io.write_csv(pd.DataFrame(
-            columns=["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce"]),
+            columns=["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce", "bounce_in"]),
             p["ball_real"])
         logger.warning("Master de pelota vacio; ball_real_coords.csv sin filas.")
 
@@ -256,7 +256,7 @@ def _generate_plots(df_players_proj, df_ball_proj, plots_dir):
     bounces_x, bounces_y = np.empty(0), np.empty(0)
     if not df_ball_proj.empty and "ball_real_x" in df_ball_proj.columns:
         valid = df_ball_proj.dropna(subset=["ball_real_x", "ball_real_y"])
-        bounces = valid[valid["is_bounce"] == 1]
+        bounces = valid[valid["is_real_bounce"] == 1]
         bounces_x = bounces["ball_real_x"].to_numpy()
         bounces_y = bounces["ball_real_y"].to_numpy()
         heatmaps.export_bounce_map(bounces_x, bounces_y, plots_dir / "ball_bounces_map.png")
