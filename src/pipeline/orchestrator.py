@@ -182,6 +182,9 @@ def _finalize(game_path, clips, output_dir, p):
         else pd.DataFrame()
     df_ball = pd.read_csv(p["ball_master"]) if p["ball_master"].exists() else pd.DataFrame()
 
+    if not df_ball.empty:
+        df_ball = ball_tracker.detect_real_bounces(df_ball)
+
     df_players_proj, df_ball_proj = _project_masters(
         df_players, df_ball, p, homography_matrix)
     _generate_plots(df_players_proj, df_ball_proj, p["plots"])
@@ -214,19 +217,22 @@ def _project_masters(df_players, df_ball, p, homography_matrix):
     logger.info("Proyectadas %d filas de jugadores a %s",
                 len(players_out), config.PLAYER_REAL_CSV)
 
-    # Pelota: proyectar (ball_x, ball_y).
+    # Pelota: proyectar solo los botes reales (is_real_bounce=1) — son los únicos
+    # frames donde la pelota está en el suelo y la homografía es válida.
     if not df_ball.empty:
         df_ball_proj = homography.project_dataframe(
             df_ball, "ball_x", "ball_y", "ball_real_x", "ball_real_y", homography_matrix,
         )
-        ball_out = df_ball_proj[["clip", "frame", "ball_real_x", "ball_real_y", "is_bounce"]]
+        has_real = "is_real_bounce" in df_ball_proj.columns
+        real_col = "is_real_bounce" if has_real else "is_bounce"
+        ball_out = (df_ball_proj[df_ball_proj[real_col] == 1]
+                    [["clip", "frame", "ball_real_x", "ball_real_y", real_col]])
         io.write_csv(ball_out, p["ball_real"])
-        logger.info("Proyectadas %d filas de pelota a %s",
-                    len(ball_out), config.BALL_REAL_CSV)
+        logger.info("Botes reales proyectados: %d -> %s", len(ball_out), config.BALL_REAL_CSV)
     else:
         df_ball_proj = df_ball
         io.write_csv(pd.DataFrame(
-            columns=["clip", "frame", "ball_real_x", "ball_real_y", "is_bounce"]),
+            columns=["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce"]),
             p["ball_real"])
         logger.warning("Master de pelota vacio; ball_real_coords.csv sin filas.")
 

@@ -91,9 +91,8 @@ class _Minimap:
         self._base = self._render_base()
 
     def _to_px(self, x_m, y_m):
-        # Rotacion 180° (invierte X e Y) MAS volteo horizontal (invierte X otra
-        # vez). El doble flip de X se cancela, asi que el resultado neto es:
-        # X normal, Y invertido.
+        # Y de la pista invertida: Y mundo alto (fondo lejano) debe quedar
+        # arriba en el minimapa (py pequeno), igual que en el frame original.
         px = int(round((x_m - self.x_min) * self.scale))
         py = int(round((self.y_max - y_m) * self.scale))
         return px, py

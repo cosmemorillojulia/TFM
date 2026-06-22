@@ -152,3 +152,56 @@ def infer_clip(clip_dir):
     n_detected = int((df["visibility"] == 1).sum())
     logger.info("Pelota | %s | detectada en %d/%d frames", key, n_detected, len(frames))
     return df
+
+
+def detect_real_bounces(df_ball, min_prominence=20, min_distance=8):
+    """Detecta botes reales en el suelo por análisis de trayectoria.
+
+    Un bote real es un máximo local prominente de ``ball_y`` (mayor Y en píxeles
+    = posición más baja en imagen = pelota más cerca del suelo). Se ignoran los
+    valores ``is_bounce`` del CSV original, que mezclan golpes con raqueta y botes.
+
+    El resultado se añade como columna ``is_real_bounce`` (0/1) al DataFrame.
+
+    Args:
+        df_ball: DataFrame con columnas ``ball_x``, ``ball_y``, ``visibility``.
+        min_prominence: mínima diferencia de ``ball_y`` entre el candidato y los
+            valles adyacentes para considerarlo bote (px). Evita ruido.
+        min_distance: separación mínima en frames entre dos botes consecutivos.
+
+    Returns:
+        Copia del DataFrame con la columna ``is_real_bounce`` añadida.
+    """
+    df = df_ball.copy()
+    df["is_real_bounce"] = 0
+
+    visible = df[df["visibility"] == 1].copy()
+    if len(visible) < 3:
+        return df
+
+    y = visible["ball_y"].values
+    idx = visible.index.values
+
+    for i in range(1, len(y) - 1):
+        # Máximo local: ball_y mayor que sus vecinos inmediatos
+        if y[i] <= y[i - 1] or y[i] <= y[i + 1]:
+            continue
+
+        # Prominencia: diferencia con el valle más alto a cada lado
+        left_min  = y[:i].min()  if i > 0          else y[i]
+        right_min = y[i+1:].min() if i < len(y) - 1 else y[i]
+        prominence = y[i] - max(left_min, right_min)
+        if prominence < min_prominence:
+            continue
+
+        # Distancia mínima al bote real anterior ya marcado
+        already = df[df["is_real_bounce"] == 1].index
+        if len(already) > 0:
+            if (idx[i] - already[-1]) < min_distance:
+                continue
+
+        df.at[idx[i], "is_real_bounce"] = 1
+
+    n = int(df["is_real_bounce"].sum())
+    logger.info("Botes reales detectados: %d", n)
+    return df

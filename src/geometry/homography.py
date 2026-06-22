@@ -1,9 +1,10 @@
 """Homografia: proyeccion de coordenadas en pixeles a metros sobre la pista.
 
 Estima la homografia que lleva pixeles del frame a coordenadas reales (metros)
-del plano de la pista ITF, a partir de las 4 esquinas de la pista. Las esquinas
-se cargan de un JSON cacheado por game; si no existe, se abre una ventana OpenCV
-para seleccionarlas con el raton (una sola vez) y se guardan.
+del plano de la pista ITF, a partir de los 10 puntos de control de la pista
+(4 esquinas, lineas de saque y T). Los puntos se cargan de un JSON cacheado por
+game; si no existe, se abre una ventana OpenCV para seleccionarlos con el raton
+(una sola vez) y se guardan.
 
 Por defecto se usa UNA homografia por game (camara consistente). El diseno esta
 preparado para usar una homografia por clip en el futuro: basta pasar una
@@ -26,15 +27,32 @@ logger = logging.getLogger(__name__)
 
 # Orden de las esquinas exigido (mismo que en el notebook):
 #   1) inferior-izquierda  2) inferior-derecha  3) superior-derecha  4) superior-izquierda
-POINT_ORDER = ["bottom_left", "bottom_right", "top_right", "top_left"]
-_CLICK_LABELS = ["1: inf-izq", "2: inf-der", "3: sup-der", "4: sup-izq"]
+POINT_ORDER = [
+    "bottom_left", "bottom_right", "top_right", "top_left",
+    "service_near_left", "service_near_right",
+    "service_far_left", "service_far_right",
+    "T_near", "T_far",
+]
+_CLICK_LABELS = [
+    "1: inf-izq", "2: inf-der", "3: sup-der", "4: sup-izq",
+    "5: saque-cerca-izq", "6: saque-cerca-der",
+    "7: saque-lejos-izq", "8: saque-lejos-der",
+    "9: T-cerca", "10: T-lejos",
+]
 
-# Puntos del mundo (metros) correspondientes a esas 4 esquinas.
+# Puntos del mundo (metros) correspondientes a los 10 puntos de control.
+# Ejes: X = ancho (0..COURT_WIDTH), Y = largo (0..COURT_LENGTH, red en COURT_LENGTH/2).
+_W  = config.COURT_WIDTH
+_L  = config.COURT_LENGTH
+_MX = config.COURT_WIDTH / 2.0          # centro en X
+_SN = config.NET_Y - config.SERVICE_LINE_FROM_NET   # linea de saque lado bottom (Y bajo, cerca)
+_SF = config.NET_Y + config.SERVICE_LINE_FROM_NET   # linea de saque lado top (Y alto, lejos)
 WORLD_POINTS = np.array([
-    [0.0,                0.0],
-    [config.COURT_WIDTH, 0.0],
-    [config.COURT_WIDTH, config.COURT_LENGTH],
-    [0.0,                config.COURT_LENGTH],
+    [0.0, 0.0],   [_W,  0.0],   # esquinas bottom
+    [_W,  _L],    [0.0, _L],    # esquinas top
+    [0.0, _SN],   [_W,  _SN],   # linea de saque lado bottom (cerca)
+    [0.0, _SF],   [_W,  _SF],   # linea de saque lado top (lejos)
+    [_MX, _SN],   [_MX, _SF],   # T central cerca y lejos
 ], dtype=np.float32)
 
 
@@ -54,28 +72,31 @@ def project_points(pts_xy, matrix):
 
 
 def compute_homography(image_points):
-    """Calcula la homografia pixel -> mundo (metros) a partir de las 4 esquinas.
+    """Calcula la homografia pixel -> mundo (metros) a partir de los puntos de control.
 
-    Con exactamente 4 puntos no degenerados el sistema tiene solucion cerrada,
-    asi que no hace falta RANSAC (``method=0``).
+    Ajusta una unica homografia global por minimos cuadrados (``cv2.findHomography``)
+    usando todos los puntos de control disponibles (esquinas, lineas de saque y T).
 
     Args:
-        image_points: array (4, 2) con las esquinas en pixeles, en el orden de
-            ``POINT_ORDER``.
+        image_points: array (N, 2) con N >= 4 puntos en pixeles, en el orden
+            de ``POINT_ORDER``.
 
     Returns:
         Matriz de homografia 3x3 (pixel -> metros).
     """
     image_points = np.asarray(image_points, dtype=np.float32)
-    if image_points.shape != (4, 2):
-        raise ValueError(f"Se esperaban 4 esquinas (4, 2); recibido {image_points.shape}")
-    homography, _mask = cv2.findHomography(image_points, WORLD_POINTS, method=0)
+    n = len(image_points)
+    if n < 4:
+        raise ValueError(f"Se necesitan al menos 4 puntos; recibido {n}")
 
-    # Sanity check: reproyectar las esquinas debe recuperar los puntos del mundo.
+    world = WORLD_POINTS[:n]
+    homography, _mask = cv2.findHomography(image_points, world, method=0)
+
+    # Sanity check: reproyectar los puntos de control debe recuperar el mundo.
     recovered = project_points(image_points, homography)
-    err = np.linalg.norm(recovered - WORLD_POINTS, axis=1)
-    logger.info("Homografia calculada | error reproyeccion medio %.4f m (max %.4f m)",
-                err.mean(), err.max())
+    err = np.linalg.norm(recovered - world, axis=1)
+    logger.info("Homografia calculada (%d pts) | error reproyeccion medio %.4f m (max %.4f m)",
+                n, err.mean(), err.max())
     return homography
 
 
