@@ -8,7 +8,7 @@ El proyecto era originalmente un conjunto de 4 notebooks de Jupyter encadenados.
 reorganizado como un **proyecto Python modular** que se ejecuta de una sola orden:
 
 ```bash
-python main.py --game-path Dataset/game1
+python main.py --game-path Dataset/game0 --output-dir outputs/game0
 ```
 
 Este comando procesa el *game* entero (todos sus clips), acumula los resultados en CSV,

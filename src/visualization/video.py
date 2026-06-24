@@ -33,6 +33,7 @@ _PLAYER_COLORS = {
 _DEFAULT_PLAYER_COLOR = (255, 0, 255)
 _BALL_COLOR = (0, 255, 255)
 _BOUNCE_COLOR = (0, 0, 255)
+_MINIMAP_COURT_COLOR = (0, 0, 0)  # negro
 
 
 def _draw_players(frame, rows):
@@ -98,7 +99,7 @@ class _Minimap:
         return px, py
 
     def _render_base(self):
-        canvas = np.full((self.h_px, self.w, 3), (60, 90, 50), dtype=np.uint8)  # verde pista
+        canvas = np.full((self.h_px, self.w, 3), _MINIMAP_COURT_COLOR, dtype=np.uint8)
         for (p0, p1) in homography.court_lines_world():
             cv2.line(canvas, self._to_px(*p0), self._to_px(*p1),
                      (255, 255, 255), 1, cv2.LINE_AA)
