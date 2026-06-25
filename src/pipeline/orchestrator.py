@@ -35,7 +35,7 @@ import numpy as np
 import pandas as pd
 
 import config
-from src.data import loaders
+from src.data import loaders, pressure
 from src.geometry import homography
 from src.tracking import ball_tracker, player_tracker
 from src.utils import io
@@ -56,6 +56,7 @@ def _paths(output_dir):
         "videos": output_dir / config.VIDEOS_SUBDIR,
         "players_master": tracking / config.PLAYERS_MASTER_CSV,
         "ball_master": tracking / config.BALL_MASTER_CSV,
+        "points_pressure": tracking / config.POINTS_PRESSURE_CSV,
         "done_players": tracking / config.DONE_PLAYERS_DIRNAME,
         "done_ball": tracking / config.DONE_BALL_DIRNAME,
         "player_real": projected / config.PLAYER_REAL_CSV,
@@ -125,16 +126,33 @@ def run_game(game_path, output_dir, export_excel=False):
         logger.info("Nada que hacer: todas las etapas ya estan completas en %s.", output_dir)
         return
 
-    # ---- Etapa 1: jugadores por clip (append al master + sentinela) ----
+    # ---- Etapa 1: jugadores + presion por clip (append al master + sentinela) ----
+    # Cada clip se procesa de forma autocontenida y en este orden:
+    #   info.json -> modelos de vision -> resolver presion con la info ya leida
+    #   -> guardar (players_master con columna "pressure" + points_pressure).
+    # No hace falta una fase previa de lectura masiva de JSONs.
     for clip_dir in clips:
         if check_stage(output_dir, clip_dir, "players"):
             logger.info("[JUGADORES] %s ya procesado; se salta.", clip_dir.name)
             continue
+        # (a) Leer primero el info.json de ESTE clip.
+        info = pressure.load_clip_info(clip_dir)
+        # (b) Ejecutar el pipeline de vision sobre los frames de ESTE clip.
         df_players = player_tracker.track_clip(clip_dir)
+        # (c) Resolver player_label -> presion del jugador y escribir la fila ya
+        #     con la columna "pressure" en el mismo paso. Ademas, acumular una
+        #     fila a nivel de PUNTO (pressure_p1, pressure_p2) en points_pressure.
         if not df_players.empty:
+            df_players = df_players.assign(
+                pressure=df_players["player_label"].map(
+                    lambda label: pressure.resolve_pressure_for_row(info, label)
+                )
+            )
             io.append_csv(df_players, p["players_master"])
+        _append_point_pressure(info, p["points_pressure"])
         io.mark_clip_done(p["done_players"], clip_dir.name)
-        logger.info("[JUGADORES] %s acumulado (%d filas).", clip_dir.name, len(df_players))
+        logger.info("[JUGADORES] %s acumulado (%d filas) | presion punto: %s.",
+                    clip_dir.name, len(df_players), pressure.compute_pressure(info))
 
     # ---- Etapa 2: pelota por clip (requiere jugadores del clip) ----
     for clip_dir in clips:
@@ -174,6 +192,27 @@ def run_game(game_path, output_dir, export_excel=False):
     logger.info("Game %s procesado. Resultados en %s", game_path.name, output_dir)
 
 
+def _append_point_pressure(info, points_pressure_csv):
+    """Acumula una fila a nivel de PUNTO en ``points_pressure.csv``.
+
+    A diferencia de ``players_master`` (formato largo: una fila por jugador y
+    frame con su propia ``pressure``), este CSV tiene una fila por clip/punto con
+    las DOS columnas ``pressure_p1`` / ``pressure_p2`` (salida directa de
+    ``compute_pressure``), para ver de un vistazo a quien afecto la presion.
+
+    Es idempotente respecto a la reanudacion: solo se llama una vez por clip,
+    desde la etapa de jugadores, protegida por el mismo sentinela ``.done_players``.
+    """
+    pressure_p1, pressure_p2 = pressure.compute_pressure(info)
+    row = pd.DataFrame([{
+        "clip_id": info["clip_id"],
+        "game_id": info["game_id"],
+        "pressure_p1": pressure_p1,
+        "pressure_p2": pressure_p2,
+    }])
+    io.append_csv(row, points_pressure_csv)
+
+
 def _finalize(game_path, clips, output_dir, p):
     """Etapa final: homografia, proyeccion a metros, plots y videos por clip."""
     homography_matrix = _resolve_homography(game_path, clips, output_dir)
@@ -183,7 +222,7 @@ def _finalize(game_path, clips, output_dir, p):
     df_ball = pd.read_csv(p["ball_master"]) if p["ball_master"].exists() else pd.DataFrame()
 
     if not df_ball.empty:
-        df_ball = ball_tracker.detect_real_bounces(df_ball)
+        df_ball = ball_tracker.detect_real_bounces(df_ball, df_players)
 
     df_players_proj, df_ball_proj = _project_masters(
         df_players, df_ball, p, homography_matrix)

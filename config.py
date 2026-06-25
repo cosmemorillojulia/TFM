@@ -59,9 +59,12 @@ DONE_BALL_DIRNAME = ".done_ball"
 HEATMAPS_SUBDIR = "heatmaps"
 
 # Video de predicciones.
-VIDEO_FPS = 25                    # fotogramas por segundo del mp4 de salida
+# Los clips fuente estan grabados a 60fps. Se renderiza a MENOS fps a proposito
+# (camara lenta) para poder ver bien las clasificaciones (botes, dentro/fuera).
+# 40fps -> reproduccion al ~0.67x de la velocidad real.
+VIDEO_FPS = 40                    # fotogramas por segundo del mp4 de salida
 VIDEO_FOURCC = "mp4v"             # codec de cv2.VideoWriter (mp4v -> .mp4)
-MINIMAP_WIDTH_PX = 130            # ancho del minimapa cenital incrustado en el video
+MINIMAP_WIDTH_PX = 190            # ancho del minimapa cenital incrustado en el video
 MINIMAP_ALPHA = 0.55              # opacidad del minimapa (0=invisible, 1=opaco)
 # Margenes (metros) del minimapa. Y (fondo) mayor que X (lateral) porque los
 # jugadores sacan/restan por detras de la linea de fondo y se saldrian del mapa.
@@ -76,6 +79,15 @@ COURT_POINTS_FILENAME = "court_points.json"
 # Nombres de los CSV acumulados (master) que se generan por game.
 PLAYERS_MASTER_CSV = "players_master.csv"
 BALL_MASTER_CSV = "ball_master.csv"
+
+# CSV de presion a nivel de PUNTO (un clip = un punto = una fila). Acumula la
+# salida directa de compute_pressure (pressure_p1, pressure_p2) por clip, para
+# consultar de un vistazo que puntos tuvieron presion para uno, para el otro,
+# para ambos (tiebreak) o para ninguno, sin reconstruirlo desde players_master.
+POINTS_PRESSURE_CSV = "points_pressure.csv"
+
+# Nombre del fichero de metadatos por clip dentro de Dataset_Clutch/<clip>/.
+CLIP_INFO_FILENAME = "info.json"
 
 # Nombres de los CSV proyectados a metros.
 PLAYER_REAL_CSV = "player_real_coords.csv"
@@ -171,6 +183,24 @@ GAUSSIAN_SIGMA = 5.0
 
 # Umbral del pico del heatmap para considerar que hay pelota detectada.
 HEATMAP_THRESHOLD = 0.5
+
+# ---------------------------------------------------------------------------
+# Deteccion de botes reales (suelo) a partir de la trayectoria de la pelota.
+# ---------------------------------------------------------------------------
+# Prominencia minima (px) del pico de bajada->subida frente a los valles LOCALES
+# mas cercanos (no el minimo global del clip). Bajado respecto al valor previo
+# (20) porque exigia demasiado y perdia botes reales con rebotes poco marcados.
+BOUNCE_MIN_PROMINENCE = 8
+
+# Separacion minima en frames entre dos botes reales consecutivos del mismo clip.
+BOUNCE_MIN_DISTANCE = 8
+
+# Radio (px) alrededor de la caja de un jugador en el que un candidato a bote se
+# descarta por ser, con mas probabilidad, un golpe de raqueta en el aire (el
+# golpe ocurre junto al jugador; un bote en el suelo cae lejos de el, a media
+# pista). Se aplica sobre la caja (bbox) de jugador, no solo el punto de pie,
+# porque el golpe se da a la altura del brazo/raqueta, por encima del pie.
+BOUNCE_PLAYER_EXCLUSION_PX = 60
 
 
 # ===========================================================================

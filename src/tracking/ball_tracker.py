@@ -147,61 +147,133 @@ def infer_clip(clip_dir):
     return df
 
 
-def detect_real_bounces(df_ball, min_prominence=20, min_distance=8):
+def _local_prominence(y, i):
+    """Prominencia de un pico de ``y`` en ``i`` frente a los valles LOCALES.
+
+    A diferencia de comparar contra el minimo global del array (que se diluye en
+    clips largos y con multiples botes), busca el valle mas cercano a cada lado
+    caminando hacia afuera mientras ``y`` no supere ``y[i]`` desde abajo, que es
+    la definicion estandar de prominencia de un pico.
+    """
+    left_min = y[i]
+    j = i - 1
+    while j >= 0 and y[j] <= y[i]:
+        left_min = min(left_min, y[j])
+        j -= 1
+    if j >= 0:
+        left_min = min(left_min, y[j])
+
+    right_min = y[i]
+    j = i + 1
+    while j < len(y) and y[j] <= y[i]:
+        right_min = min(right_min, y[j])
+        j += 1
+    if j < len(y):
+        right_min = min(right_min, y[j])
+
+    return y[i] - max(left_min, right_min)
+
+
+def _near_player(ball_x, ball_y, players_at_frame, radius):
+    """True si el punto cae dentro de la caja de un jugador (+ radio de margen).
+
+    Se usa para descartar candidatos a bote que en realidad son golpes de
+    raqueta: el golpe ocurre junto al jugador (a la altura del brazo/raqueta,
+    por encima del punto de pie), mientras que un bote real en el suelo cae
+    lejos de las cajas de ambos jugadores, a media pista.
+    """
+    for p in players_at_frame:
+        if (p["bbox_x1"] - radius <= ball_x <= p["bbox_x2"] + radius
+                and p["bbox_y1"] - radius <= ball_y <= p["bbox_y2"] + radius):
+            return True
+    return False
+
+
+def detect_real_bounces(df_ball, df_players=None,
+                         min_prominence=None, min_distance=None, player_exclusion_px=None):
     """Detecta botes reales en el suelo por cambio de signo de la velocidad vertical.
 
     Un bote real es un frame donde la pelota pasa de bajar a subir bruscamente:
     ``ball_y`` (Y en píxeles, crece hacia abajo en la imagen) tiene velocidad
-    positiva (bajando) justo antes y negativa (subiendo) justo después. Este
-    criterio es más robusto que un simple máximo local de ``ball_y``: un golpe de
-    raqueta en el aire suele frenar/redirigir la pelota de forma más gradual,
-    mientras que el bote en el suelo produce un cambio de velocidad más abrupto
-    (mayor prominencia).
+    positiva (bajando) justo antes y negativa (subiendo) justo después, con
+    suficiente prominencia LOCAL (frente a los valles mas cercanos, no el minimo
+    global del clip). Si se pasa ``df_players``, los candidatos que caen dentro
+    de la caja de un jugador (+ margen) se descartan: son golpes de raqueta en
+    el aire, no botes en el suelo.
+
+    La deteccion se hace POR CLIP de forma independiente (un valle de un clip no
+    debe afectar a la prominencia de otro).
 
     El resultado se añade como columna ``is_real_bounce`` (0/1) al DataFrame.
 
     Args:
-        df_ball: DataFrame con columnas ``ball_x``, ``ball_y``, ``visibility``.
-        min_prominence: mínima diferencia de ``ball_y`` entre el candidato y los
-            valles adyacentes para considerarlo bote (px). Evita ruido.
-        min_distance: separación mínima en frames entre dos botes consecutivos.
+        df_ball: DataFrame con columnas ``clip``, ``frame``, ``ball_x``,
+            ``ball_y``, ``visibility``.
+        df_players: DataFrame de jugadores (columnas ``clip``, ``frame``,
+            ``bbox_x1/y1/x2/y2``) para descartar golpes de raqueta por
+            proximidad. Si es ``None`` o vacio, no se aplica ese filtro.
+        min_prominence: minima diferencia de ``ball_y`` entre el candidato y los
+            valles locales adyacentes para considerarlo bote (px). Por defecto
+            ``config.BOUNCE_MIN_PROMINENCE``.
+        min_distance: separacion minima en frames entre dos botes consecutivos
+            del mismo clip. Por defecto ``config.BOUNCE_MIN_DISTANCE``.
+        player_exclusion_px: margen (px) alrededor de la caja de un jugador para
+            descartar un candidato por golpe de raqueta. Por defecto
+            ``config.BOUNCE_PLAYER_EXCLUSION_PX``.
 
     Returns:
         Copia del DataFrame con la columna ``is_real_bounce`` añadida.
     """
+    min_prominence = config.BOUNCE_MIN_PROMINENCE if min_prominence is None else min_prominence
+    min_distance = config.BOUNCE_MIN_DISTANCE if min_distance is None else min_distance
+    player_exclusion_px = (config.BOUNCE_PLAYER_EXCLUSION_PX if player_exclusion_px is None
+                            else player_exclusion_px)
+
     df = df_ball.copy()
     df["is_real_bounce"] = 0
 
-    visible = df[df["visibility"] == 1].copy()
-    if len(visible) < 3:
-        return df
+    players_by_clip_frame = {}
+    if df_players is not None and not df_players.empty:
+        for (clip, frame), sub in df_players.groupby(["clip", "frame"]):
+            players_by_clip_frame[(clip, frame)] = sub.to_dict("records")
 
-    y = visible["ball_y"].values
-    idx = visible.index.values
-    vy = np.diff(y)   # velocidad vertical entre frames consecutivos (visibles)
-
-    last_bounce_idx = None
-    for i in range(1, len(y) - 1):
-        # Cambio de signo: bajando (vy>0) antes, subiendo (vy<0) despues.
-        if not (vy[i - 1] > 0 and vy[i] < 0):
+    n_total = 0
+    n_rejected_player = 0
+    for clip, df_clip in df.groupby("clip"):
+        visible = df_clip[df_clip["visibility"] == 1].sort_values("frame")
+        if len(visible) < 3:
             continue
 
-        # Prominencia: diferencia con el valle (menor ball_y) mas alto a cada lado.
-        left_min  = y[:i].min()
-        right_min = y[i + 1:].min() if i < len(y) - 1 else y[i]
-        prominence = y[i] - max(left_min, right_min)
-        if prominence < min_prominence:
-            continue
+        y = visible["ball_y"].values
+        frames = visible["frame"].values
+        idx = visible.index.values
+        vy = np.diff(y)   # velocidad vertical entre frames consecutivos (visibles)
 
-        # Distancia minima al bote real anterior ya marcado.
-        if last_bounce_idx is not None and (idx[i] - last_bounce_idx) < min_distance:
-            continue
+        last_bounce_frame = None
+        for i in range(1, len(y) - 1):
+            # Cambio de signo: bajando (vy>0) antes, subiendo (vy<0) despues.
+            if not (vy[i - 1] > 0 and vy[i] < 0):
+                continue
 
-        df.at[idx[i], "is_real_bounce"] = 1
-        last_bounce_idx = idx[i]
+            if _local_prominence(y, i) < min_prominence:
+                continue
 
-    n = int(df["is_real_bounce"].sum())
-    logger.info("Botes reales detectados: %d", n)
+            # Distancia minima al bote real anterior ya marcado (mismo clip).
+            if last_bounce_frame is not None and (frames[i] - last_bounce_frame) < min_distance:
+                continue
+
+            # Descartar golpes de raqueta: candidato dentro de la caja de un jugador.
+            players_here = players_by_clip_frame.get((clip, int(frames[i])), [])
+            if _near_player(visible["ball_x"].values[i], y[i], players_here, player_exclusion_px):
+                n_rejected_player += 1
+                continue
+
+            df.at[idx[i], "is_real_bounce"] = 1
+            last_bounce_frame = frames[i]
+            n_total += 1
+
+    logger.info("Botes reales detectados: %d (descartados por golpe de raqueta: %d)",
+                n_total, n_rejected_player)
     return df
 
 
