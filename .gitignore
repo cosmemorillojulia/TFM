@@ -12,3 +12,6 @@ __pycache__/
 *.pyo
 
 yolov8s.pt
+
+Dataset_Clutch/
+Dataset/
