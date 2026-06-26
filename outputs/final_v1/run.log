@@ -1,0 +1,200 @@
+00:46:29 | INFO    | main | Game: Dataset_Clutch | salida: /workspace/TFM/outputs/final_v1
+00:46:30 | INFO    | src.pipeline.orchestrator | Game Dataset_Clutch | 169 clips: Clip1, Clip2, Clip3, Clip4, Clip5, Clip6, Clip7, Clip8, Clip9, Clip10, Clip11, Clip12, Clip13, Clip14, Clip15, Clip16, Clip17, Clip18, Clip19, Clip20, Clip21, Clip22, Clip23, Clip24, Clip25, Clip26, Clip27, Clip28, Clip29, Clip30, Clip31, Clip32, Clip33, Clip34, Clip35, Clip36, Clip37, Clip38, Clip39, Clip40, Clip41, Clip42, Clip43, Clip44, Clip45, Clip46, Clip47, Clip48, Clip49, Clip50, Clip51, Clip52, Clip53, Clip54, Clip55, Clip56, Clip57, Clip58, Clip59, Clip60, Clip61, Clip62, Clip63, Clip64, Clip65, Clip66, Clip67, Clip68, Clip69, Clip70, Clip71, Clip72, Clip73, Clip74, Clip75, Clip76, Clip77, Clip78, Clip79, Clip80, Clip81, Clip82, Clip83, Clip84, Clip85, Clip86, Clip87, Clip88, Clip89, Clip90, Clip91, Clip92, Clip93, Clip94, Clip95, Clip96, Clip97, Clip98, Clip99, Clip100, Clip101, Clip102, Clip103, Clip104, Clip105, Clip106, Clip107, Clip108, Clip109, Clip110, Clip111, Clip112, Clip113, Clip114, Clip115, Clip116, Clip117, Clip118, Clip119, Clip120, Clip121, Clip122, Clip123, Clip124, Clip125, Clip126, Clip127, Clip128, Clip129, Clip130, Clip131, Clip132, Clip133, Clip134, Clip135, Clip136, Clip137, Clip138, Clip139, Clip140, Clip141, Clip142, Clip143, Clip144, Clip145, Clip146, Clip147, Clip148, Clip149, Clip150, Clip151, Clip152, Clip153, Clip154, Clip155, Clip156, Clip157, Clip158, Clip159, Clip160, Clip161, Clip162, Clip163, Clip164, Clip165, Clip166, Clip167, Clip168, Clip169
+00:46:30 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip1 | 250 frames | 1920x1080
+00:46:30 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+00:46:30 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+00:46:44 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+00:46:44 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+00:46:44 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip2 | 92 frames | 1920x1080
+00:46:49 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+00:46:49 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+00:46:49 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip3 | 200 frames | 1920x1080
+00:46:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+00:46:59 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+00:46:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip4 | 400 frames | 1920x1080
+00:47:20 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip4 | 12 tracks -> 2 seleccionados por movimiento
+00:47:20 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip4 acumulado (800 filas) | presion punto: (1, 1).
+00:47:20 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip5 | 100 frames | 1920x1080
+00:47:25 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip5 | 9 tracks -> 2 seleccionados por movimiento
+00:47:25 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip5 acumulado (200 filas) | presion punto: (1, 1).
+00:47:25 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip6 | 436 frames | 1920x1080
+00:47:47 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip6 | 9 tracks -> 2 seleccionados por movimiento
+00:47:47 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip6 acumulado (872 filas) | presion punto: (1, 1).
+00:47:47 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip7 | 350 frames | 1920x1080
+00:48:05 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip7 | 15 tracks -> 2 seleccionados por movimiento
+00:48:05 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip7 acumulado (700 filas) | presion punto: (1, 1).
+00:48:05 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip8 | 600 frames | 1920x1080
+00:48:36 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip8 | 18 tracks -> 2 seleccionados por movimiento
+00:48:36 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip8 acumulado (1200 filas) | presion punto: (1, 1).
+00:48:36 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip9 | 344 frames | 1920x1080
+00:48:54 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip9 | 17 tracks -> 2 seleccionados por movimiento
+00:48:54 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip9 acumulado (688 filas) | presion punto: (1, 1).
+00:48:54 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip10 | 400 frames | 1920x1080
+00:49:14 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip10 | 11 tracks -> 2 seleccionados por movimiento
+00:49:14 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip10 acumulado (800 filas) | presion punto: (1, 1).
+00:49:14 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip11 | 350 frames | 1920x1080
+00:49:32 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip11 | 14 tracks -> 2 seleccionados por movimiento
+00:49:32 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip11 acumulado (700 filas) | presion punto: (1, 1).
+00:49:32 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip12 | 381 frames | 1920x1080
+00:49:50 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip12 | 13 tracks -> 2 seleccionados por movimiento
+00:49:50 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip12 acumulado (762 filas) | presion punto: (1, 1).
+00:49:50 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip13 | 650 frames | 1920x1080
+00:50:22 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip13 | 15 tracks -> 2 seleccionados por movimiento
+00:50:22 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip13 acumulado (1300 filas) | presion punto: (0, 1).
+00:50:22 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip14 | 400 frames | 1920x1080
+00:50:42 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip14 | 10 tracks -> 2 seleccionados por movimiento
+00:50:42 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip14 acumulado (800 filas) | presion punto: (0, 0).
+00:50:42 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip15 | 100 frames | 1920x1080
+00:50:47 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip15 | 8 tracks -> 2 seleccionados por movimiento
+00:50:47 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip15 acumulado (200 filas) | presion punto: (0, 1).
+00:50:47 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip16 | 350 frames | 1920x1080
+00:51:04 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip16 | 11 tracks -> 2 seleccionados por movimiento
+00:51:04 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip16 acumulado (700 filas) | presion punto: (0, 0).
+00:51:04 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip17 | 250 frames | 1920x1080
+00:51:17 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip17 | 9 tracks -> 2 seleccionados por movimiento
+00:51:17 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip17 acumulado (500 filas) | presion punto: (0, 0).
+00:51:17 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip18 | 450 frames | 1920x1080
+00:51:39 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip18 | 11 tracks -> 2 seleccionados por movimiento
+00:51:39 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip18 acumulado (900 filas) | presion punto: (0, 0).
+00:51:39 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip19 | 150 frames | 1920x1080
+00:51:46 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip19 | 10 tracks -> 2 seleccionados por movimiento
+00:51:46 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip19 acumulado (300 filas) | presion punto: (0, 0).
+00:51:46 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip20 | 441 frames | 1920x1080
+00:52:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip20 | 13 tracks -> 2 seleccionados por movimiento
+00:52:08 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip20 acumulado (882 filas) | presion punto: (0, 0).
+00:52:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip21 | 250 frames | 1920x1080
+00:52:21 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip21 | 12 tracks -> 2 seleccionados por movimiento
+00:52:21 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip21 acumulado (500 filas) | presion punto: (1, 0).
+00:52:21 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip22 | 250 frames | 1920x1080
+00:52:33 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip22 | 9 tracks -> 2 seleccionados por movimiento
+00:52:33 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip22 acumulado (500 filas) | presion punto: (0, 0).
+00:52:33 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip23 | 300 frames | 1920x1080
+00:52:48 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip23 | 13 tracks -> 2 seleccionados por movimiento
+00:52:48 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip23 acumulado (600 filas) | presion punto: (1, 0).
+00:52:48 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip24 | 900 frames | 1920x1080
+00:53:33 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip24 | 12 tracks -> 2 seleccionados por movimiento
+00:53:33 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip24 acumulado (1800 filas) | presion punto: (0, 0).
+00:53:33 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip25 | 250 frames | 1920x1080
+00:53:45 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip25 | 9 tracks -> 2 seleccionados por movimiento
+00:53:45 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip25 acumulado (500 filas) | presion punto: (1, 0).
+00:53:45 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip26 | 434 frames | 1920x1080
+00:54:06 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip26 | 11 tracks -> 2 seleccionados por movimiento
+00:54:06 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip26 acumulado (868 filas) | presion punto: (1, 0).
+00:54:06 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip27 | 100 frames | 1920x1080
+00:54:11 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip27 | 10 tracks -> 1 seleccionados por movimiento
+00:54:11 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip27 acumulado (100 filas) | presion punto: (0, 0).
+00:54:11 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip28 | 100 frames | 1920x1080
+00:54:16 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip28 | 7 tracks -> 1 seleccionados por movimiento
+00:54:17 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip28 acumulado (100 filas) | presion punto: (0, 0).
+00:54:17 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip29 | 200 frames | 1920x1080
+00:54:26 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip29 | 8 tracks -> 2 seleccionados por movimiento
+00:54:26 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip29 acumulado (400 filas) | presion punto: (0, 0).
+00:54:26 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip30 | 50 frames | 1920x1080
+00:54:29 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip30 | 7 tracks -> 1 seleccionados por movimiento
+00:54:29 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip30 acumulado (50 filas) | presion punto: (0, 0).
+00:54:29 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip31 | 150 frames | 1920x1080
+00:54:37 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip31 | 10 tracks -> 2 seleccionados por movimiento
+00:54:37 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip31 acumulado (300 filas) | presion punto: (1, 0).
+00:54:37 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip32 | 500 frames | 1920x1080
+00:55:02 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip32 | 15 tracks -> 2 seleccionados por movimiento
+00:55:02 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip32 acumulado (1000 filas) | presion punto: (0, 0).
+00:55:02 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip33 | 396 frames | 1920x1080
+00:55:23 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip33 | 19 tracks -> 2 seleccionados por movimiento
+00:55:23 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip33 acumulado (792 filas) | presion punto: (0, 0).
+00:55:23 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip34 | 250 frames | 1920x1080
+00:55:36 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip34 | 13 tracks -> 2 seleccionados por movimiento
+00:55:36 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip34 acumulado (500 filas) | presion punto: (0, 0).
+00:55:36 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip35 | 300 frames | 1920x1080
+00:55:51 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip35 | 14 tracks -> 2 seleccionados por movimiento
+00:55:51 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip35 acumulado (600 filas) | presion punto: (0, 0).
+00:55:51 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip36 | 450 frames | 1920x1080
+00:56:14 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip36 | 11 tracks -> 2 seleccionados por movimiento
+00:56:14 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip36 acumulado (900 filas) | presion punto: (1, 0).
+00:56:14 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip37 | 100 frames | 1920x1080
+00:56:19 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip37 | 9 tracks -> 1 seleccionados por movimiento
+00:56:19 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip37 acumulado (100 filas) | presion punto: (0, 0).
+00:56:19 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip38 | 450 frames | 1920x1080
+00:56:42 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip38 | 12 tracks -> 2 seleccionados por movimiento
+00:56:42 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip38 acumulado (900 filas) | presion punto: (0, 0).
+00:56:42 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip39 | 200 frames | 1920x1080
+00:56:53 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip39 | 9 tracks -> 2 seleccionados por movimiento
+00:56:53 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip39 acumulado (400 filas) | presion punto: (0, 0).
+00:56:53 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip40 | 200 frames | 1920x1080
+00:57:03 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip40 | 11 tracks -> 2 seleccionados por movimiento
+00:57:03 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip40 acumulado (400 filas) | presion punto: (0, 0).
+00:57:03 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip41 | 100 frames | 1920x1080
+00:57:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip41 | 7 tracks -> 1 seleccionados por movimiento
+00:57:08 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip41 acumulado (100 filas) | presion punto: (0, 1).
+00:57:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip42 | 250 frames | 1920x1080
+00:57:20 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip42 | 9 tracks -> 2 seleccionados por movimiento
+00:57:20 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip42 acumulado (500 filas) | presion punto: (0, 1).
+00:57:20 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip43 | 150 frames | 1920x1080
+00:57:28 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip43 | 8 tracks -> 1 seleccionados por movimiento
+00:57:28 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip43 acumulado (150 filas) | presion punto: (0, 0).
+00:57:28 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip44 | 50 frames | 1920x1080
+00:57:31 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip44 | 7 tracks -> 2 seleccionados por movimiento
+00:57:31 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip44 acumulado (100 filas) | presion punto: (0, 0).
+00:57:31 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip45 | 178 frames | 1920x1080
+00:57:40 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip45 | 9 tracks -> 2 seleccionados por movimiento
+00:57:40 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip45 acumulado (356 filas) | presion punto: (0, 0).
+00:57:40 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip46 | 188 frames | 1920x1080
+00:57:49 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip46 | 8 tracks -> 2 seleccionados por movimiento
+00:57:49 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip46 acumulado (376 filas) | presion punto: (0, 0).
+00:57:49 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip47 | 200 frames | 1920x1080
+00:57:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip47 | 9 tracks -> 2 seleccionados por movimiento
+00:57:59 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip47 acumulado (400 filas) | presion punto: (1, 0).
+00:57:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip48 | 150 frames | 1920x1080
+00:58:07 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip48 | 9 tracks -> 2 seleccionados por movimiento
+00:58:07 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip48 acumulado (300 filas) | presion punto: (0, 0).
+00:58:07 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip49 | 100 frames | 1920x1080
+00:58:12 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip49 | 8 tracks -> 1 seleccionados por movimiento
+00:58:12 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip49 acumulado (100 filas) | presion punto: (0, 0).
+00:58:12 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip50 | 350 frames | 1920x1080
+00:58:29 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip50 | 11 tracks -> 2 seleccionados por movimiento
+00:58:29 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip50 acumulado (700 filas) | presion punto: (0, 0).
+00:58:29 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip51 | 150 frames | 1920x1080
+00:58:37 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip51 | 10 tracks -> 2 seleccionados por movimiento
+00:58:37 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip51 acumulado (300 filas) | presion punto: (0, 1).
+00:58:37 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip52 | 350 frames | 1920x1080
+00:58:55 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip52 | 10 tracks -> 2 seleccionados por movimiento
+00:58:55 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip52 acumulado (700 filas) | presion punto: (0, 0).
+00:58:55 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip53 | 150 frames | 1920x1080
+00:59:03 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip53 | 12 tracks -> 2 seleccionados por movimiento
+00:59:04 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip53 acumulado (300 filas) | presion punto: (0, 0).
+00:59:04 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip54 | 400 frames | 1920x1080
+00:59:24 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip54 | 16 tracks -> 2 seleccionados por movimiento
+00:59:24 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip54 acumulado (800 filas) | presion punto: (0, 0).
+00:59:24 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip55 | 50 frames | 1920x1080
+00:59:26 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip55 | 8 tracks -> 2 seleccionados por movimiento
+00:59:26 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip55 acumulado (100 filas) | presion punto: (0, 0).
+00:59:26 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip56 | 250 frames | 1920x1080
+00:59:39 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip56 | 10 tracks -> 2 seleccionados por movimiento
+00:59:39 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip56 acumulado (500 filas) | presion punto: (0, 0).
+00:59:39 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip57 | 200 frames | 1920x1080
+00:59:50 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip57 | 11 tracks -> 2 seleccionados por movimiento
+00:59:50 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip57 acumulado (400 filas) | presion punto: (1, 0).
+00:59:50 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip58 | 150 frames | 1920x1080
+00:59:57 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip58 | 9 tracks -> 2 seleccionados por movimiento
+00:59:57 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip58 acumulado (300 filas) | presion punto: (0, 0).
+00:59:57 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip59 | 400 frames | 1920x1080
+01:00:18 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip59 | 15 tracks -> 2 seleccionados por movimiento
+01:00:18 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip59 acumulado (800 filas) | presion punto: (0, 0).
+01:00:18 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip60 | 400 frames | 1920x1080
+01:00:38 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip60 | 11 tracks -> 2 seleccionados por movimiento
+01:00:38 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip60 acumulado (800 filas) | presion punto: (0, 0).
+01:00:38 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip61 | 400 frames | 1920x1080
+01:00:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip61 | 20 tracks -> 2 seleccionados por movimiento
+01:00:59 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip61 acumulado (800 filas) | presion punto: (0, 0).
+01:00:59 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip62 | 190 frames | 1920x1080
+01:01:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip62 | 8 tracks -> 2 seleccionados por movimiento
+01:01:08 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip62 acumulado (380 filas) | presion punto: (0, 1).
+01:01:08 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip63 | 150 frames | 1920x1080
+01:01:16 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip63 | 11 tracks -> 2 seleccionados por movimiento
+01:01:16 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip63 acumulado (300 filas) | presion punto: (0, 0).
+01:01:16 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip64 | 396 frames | 1920x1080
+01:01:35 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip64 | 16 tracks -> 2 seleccionados por movimiento
+01:01:35 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip64 acumulado (792 filas) | presion punto: (1, 0).
+01:01:35 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip65 | 100 frames | 1920x1080
+01:01:41 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip65 | 7 tracks -> 2 seleccionados por movimiento
+01:01:41 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip65 acumulado (200 filas) | presion punto: (0, 0).
+01:01:41 | INFO    | src.tracking.player_tracker | Jugadores | Dataset_Clutch/Clip66 | 500 frames | 1920x1080

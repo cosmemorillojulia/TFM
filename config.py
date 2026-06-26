@@ -65,6 +65,11 @@ HEATMAPS_SUBDIR = "heatmaps"
 VIDEO_FPS = 40                    # fotogramas por segundo del mp4 de salida
 VIDEO_FOURCC = "mp4v"             # codec de cv2.VideoWriter (mp4v -> .mp4)
 MINIMAP_WIDTH_PX = 190            # ancho del minimapa cenital incrustado en el video
+
+# Marca persistente de bote: un punto rojo translucido que se queda en pantalla
+# en cada sitio donde ha botado la pelota (se acumulan durante el punto).
+BOUNCE_MARK_RADIUS_PX = 9         # radio del punto de bote en el video
+BOUNCE_MARK_ALPHA = 0.45          # opacidad de la marca (0=invisible, 1=opaca)
 MINIMAP_ALPHA = 0.55              # opacidad del minimapa (0=invisible, 1=opaco)
 # Margenes (metros) del minimapa. Y (fondo) mayor que X (lateral) porque los
 # jugadores sacan/restan por detras de la linea de fondo y se saldrian del mapa.
@@ -195,12 +200,44 @@ BOUNCE_MIN_PROMINENCE = 8
 # Separacion minima en frames entre dos botes reales consecutivos del mismo clip.
 BOUNCE_MIN_DISTANCE = 8
 
-# Radio (px) alrededor de la caja de un jugador en el que un candidato a bote se
-# descarta por ser, con mas probabilidad, un golpe de raqueta en el aire (el
-# golpe ocurre junto al jugador; un bote en el suelo cae lejos de el, a media
-# pista). Se aplica sobre la caja (bbox) de jugador, no solo el punto de pie,
-# porque el golpe se da a la altura del brazo/raqueta, por encima del pie.
-BOUNCE_PLAYER_EXCLUSION_PX = 60
+# Margen (metros) de tolerancia para clasificar un bote como "dentro" de pista.
+# El punto que se proyecta es el CENTRO de la pelota detectada (heatmap), no su
+# punto de contacto exacto con el suelo, y arrastra algo de error de deteccion;
+# sin margen, botes justo sobre la linea (a pocos cm) salen "fuera". 0.40m ~ un
+# radio de pelota proyectado + ruido razonable.
+BOUNCE_IN_MARGIN_M = 0.40
+
+# Margen (px) en X alrededor de la caja de un jugador para considerar que un
+# candidato a bote cae "en su columna". Filtro de raqueta FUERTE: ampliado a 90px
+# para cubrir el raquetazo con el brazo extendido (la pelota se golpea algo fuera
+# de la bbox). Solo descarta junto con BOUNCE_HIT_ZONE_FRAC: ademas de estar en la
+# columna, la pelota debe estar a altura de golpeo (torso/cabeza), no a los pies.
+BOUNCE_PLAYER_EXCLUSION_PX = 90
+
+# Fraccion SUPERIOR de la caja del jugador considerada "zona de golpeo". Un
+# candidato en la columna del jugador y por encima de
+# ``bbox_y2 - BOUNCE_HIT_ZONE_FRAC * altura`` se descarta como golpe de raqueta;
+# por debajo (zona de pies/suelo) se conserva como bote real. 0.70 deja el
+# ~30% inferior del cuerpo (piernas/pies) como territorio valido de bote, que
+# es justo donde caen los botes cerca de un jugador en el fondo de pista.
+BOUNCE_HIT_ZONE_FRAC = 0.70
+
+# --- Regla principal: continuidad de avance (bote = no cambia de campo) ---
+# Un bote conserva el campo de la pelota los frames siguientes; un raquetazo la
+# manda al otro campo (cruza la red). Se mide en coordenadas de pista (metros).
+
+# Salto maximo plausible de la pelota entre dos frames visibles, como fraccion de
+# la diagonal del recorrido del clip. Por encima se considera outlier de tracking
+# y se interpola (limpieza previa imprescindible para que la regla sea fiable).
+BOUNCE_MAX_JUMP_FRAC = 0.18
+
+# Nº de frames visibles a mirar a cada lado del evento para decidir el campo
+# (lado de la red) antes vs despues. Ventana robusta (mediana), no frame a frame.
+BOUNCE_DIR_LOOKAHEAD = 10
+
+# Nº minimo de puntos validos a cada lado para poder decidir si cruza de campo.
+# Si no se alcanza (inicio/fin de clip), se acepta el bote (no penalizar).
+BOUNCE_DIR_MIN_PTS = 3
 
 
 # ===========================================================================

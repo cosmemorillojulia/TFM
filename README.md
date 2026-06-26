@@ -11,6 +11,8 @@ reorganizado como un **proyecto Python modular** que se ejecuta de una sola orde
 python main.py --game-path Dataset/game0 --output-dir outputs/game0
 ```
 
+python main.py --game-path Dataset_Clutch --output-dir outputs/final_v1
+
 Este comando procesa el *game* entero (todos sus clips), acumula los resultados en CSV,
 los proyecta a metros y genera los mapas de calor, sin tocar nada más.
 

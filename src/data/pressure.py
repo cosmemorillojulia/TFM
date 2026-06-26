@@ -79,6 +79,24 @@ def compute_pressure(info: dict) -> tuple[int, int]:
     return int(pressure_p1), int(pressure_p2)
 
 
+def resolve_player_names(info: dict) -> dict:
+    """Mapea ``player_top``/``player_bottom`` a los nombres reales del info.json.
+
+    Cruza la posicion de player_1 (``player_1_position``) con los nombres
+    ``player_1`` / ``player_2`` para saber que nombre va arriba y cual abajo.
+
+    Args:
+        info: dict del info.json del clip (ya saneado por ``load_clip_info``).
+
+    Returns:
+        dict ``{"player_top": <nombre>, "player_bottom": <nombre>}``.
+    """
+    p1_pos = info["player_1_position"]
+    name_top = info["player_1"] if p1_pos == "top" else info["player_2"]
+    name_bottom = info["player_1"] if p1_pos == "bottom" else info["player_2"]
+    return {"player_top": name_top, "player_bottom": name_bottom}
+
+
 def resolve_pressure_for_row(info: dict, player_label: str) -> int:
     """A partir de info.json y el player_label de una fila de players_master
     ('player_top' o 'player_bottom'), devuelve la presión (0/1) de ESE

@@ -36,15 +36,25 @@ _BOUNCE_COLOR = (0, 0, 255)
 _MINIMAP_COURT_COLOR = (0, 0, 0)  # negro
 
 
-def _draw_players(frame, rows):
-    """Dibuja cajas, etiquetas y punto de pie de los jugadores de un frame."""
+def _draw_players(frame, rows, label_names=None):
+    """Dibuja cajas, etiquetas y punto de pie de los jugadores de un frame.
+
+    Args:
+        frame: imagen BGR (se modifica in place).
+        rows: filas de jugadores del frame.
+        label_names: dict opcional ``{player_label: nombre_real}`` para mostrar
+            el nombre del jugador (del info.json) en vez de ``player_top``/
+            ``player_bottom``. Si falta o no contiene la etiqueta, se usa la
+            etiqueta cruda.
+    """
+    label_names = label_names or {}
     for r in rows:
         color = _PLAYER_COLORS.get(r["player_label"], _DEFAULT_PLAYER_COLOR)
         x1, y1 = int(r["bbox_x1"]), int(r["bbox_y1"])
         x2, y2 = int(r["bbox_x2"]), int(r["bbox_y2"])
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         # Etiqueta con fondo para legibilidad.
-        label = r["player_label"]
+        label = label_names.get(r["player_label"], r["player_label"])
         (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
         cv2.rectangle(frame, (x1, y1 - th - 6), (x1 + tw + 4, y1), color, -1)
         cv2.putText(frame, label, (x1 + 2, y1 - 4),
@@ -54,17 +64,42 @@ def _draw_players(frame, rows):
 
 
 def _draw_ball(frame, ball_row):
-    """Dibuja la pelota si es visible; resalta el rebote."""
+    """Dibuja la pelota si es visible."""
     if ball_row is None or ball_row["visibility"] != 1:
         return
     if np.isnan(ball_row["ball_x"]) or np.isnan(ball_row["ball_y"]):
         return
     cx, cy = int(ball_row["ball_x"]), int(ball_row["ball_y"])
-    if ball_row.get("is_real_bounce", 0) == 1:
-        cv2.circle(frame, (cx, cy), 10, _BOUNCE_COLOR, 2, cv2.LINE_AA)
-        cv2.putText(frame, "BOTE", (cx + 12, cy),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, _BOUNCE_COLOR, 1, cv2.LINE_AA)
     cv2.circle(frame, (cx, cy), 6, _BALL_COLOR, -1, cv2.LINE_AA)
+
+
+def _draw_persistent_bounces(frame, bounces):
+    """Dibuja una marca roja translucida PERSISTENTE en cada bote ya ocurrido.
+
+    A diferencia de la marca instantanea anterior (solo visible en el frame del
+    bote), estos puntos se acumulan y se mantienen en pantalla en todos los
+    frames siguientes, para poder ver claramente donde ha botado la pelota a lo
+    largo del punto.
+
+    Args:
+        frame: imagen BGR sobre la que dibujar (se modifica in place).
+        bounces: lista de ``(x_px, y_px)`` de los botes ocurridos hasta el frame
+            actual.
+    """
+    if not bounces:
+        return
+    # Capa translucida: se dibujan los circulos rellenos en una copia y se mezcla
+    # con el frame con alpha, para que se vea el suelo a traves de la marca.
+    overlay = frame.copy()
+    for (x, y) in bounces:
+        cv2.circle(overlay, (int(x), int(y)), config.BOUNCE_MARK_RADIUS_PX,
+                   _BOUNCE_COLOR, -1, cv2.LINE_AA)
+    cv2.addWeighted(overlay, config.BOUNCE_MARK_ALPHA,
+                    frame, 1 - config.BOUNCE_MARK_ALPHA, 0, dst=frame)
+    # Borde opaco para que la marca resalte sobre fondos claros.
+    for (x, y) in bounces:
+        cv2.circle(frame, (int(x), int(y)), config.BOUNCE_MARK_RADIUS_PX,
+                   _BOUNCE_COLOR, 1, cv2.LINE_AA)
 
 
 class _Minimap:
@@ -136,7 +171,8 @@ def _overlay_minimap(frame, mini):
     cv2.rectangle(frame, (x0 - 2, y0 - 2), (x0 + mw + 2, y0 + mh + 2), (255, 255, 255), 1)
 
 
-def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix, out_path):
+def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix,
+                      out_path, label_names=None):
     """Genera el mp4 de un clip con todas las predicciones superpuestas.
 
     Args:
@@ -145,6 +181,8 @@ def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix
         df_ball_clip: filas de pelota de ESTE clip (columnas del master) o vacio.
         homography_matrix: homografia pixel->metros del game.
         out_path: ruta del .mp4 de salida.
+        label_names: dict opcional ``{player_label: nombre_real}`` para etiquetar
+            a los jugadores con su nombre (del info.json) en vez de top/bottom.
     """
     frames = loaders.list_frames(clip_dir)
     if not frames:
@@ -164,13 +202,22 @@ def render_clip_video(clip_dir, df_players_clip, df_ball_clip, homography_matrix
     ball_by_frame = ({f: sub.iloc[0].to_dict() for f, sub in df_ball_clip.groupby("frame")}
                      if not df_ball_clip.empty else {})
 
+    # Botes que se van marcando de forma persistente: una vez ocurre un bote, su
+    # punto rojo translucido se mantiene en pantalla en todos los frames siguientes.
+    bounces_so_far = []
+
     for idx, fp in enumerate(frames):
         frame = cv2.imread(str(fp))
 
         rows = players_by_frame.get(idx, [])
-        _draw_players(frame, rows)
+        _draw_players(frame, rows, label_names)
 
         ball_row = ball_by_frame.get(idx)
+        # Acumular el bote de este frame (si lo hay) antes de dibujar la capa.
+        if (ball_row is not None and ball_row.get("is_real_bounce", 0) == 1
+                and not np.isnan(ball_row["ball_x"]) and not np.isnan(ball_row["ball_y"])):
+            bounces_so_far.append((ball_row["ball_x"], ball_row["ball_y"]))
+        _draw_persistent_bounces(frame, bounces_so_far)
         _draw_ball(frame, ball_row)
 
         # Minimapa: proyectar posiciones a metros.

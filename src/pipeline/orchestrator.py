@@ -222,7 +222,8 @@ def _finalize(game_path, clips, output_dir, p):
     df_ball = pd.read_csv(p["ball_master"]) if p["ball_master"].exists() else pd.DataFrame()
 
     if not df_ball.empty:
-        df_ball = ball_tracker.detect_real_bounces(df_ball, df_players)
+        df_ball = ball_tracker.detect_real_bounces(
+            df_ball, df_players, homography_matrix=homography_matrix)
 
     df_players_proj, df_ball_proj = _project_masters(
         df_players, df_ball, p, homography_matrix)
@@ -263,7 +264,8 @@ def _project_masters(df_players, df_ball, p, homography_matrix):
             df_ball, "ball_x", "ball_y", "ball_real_x", "ball_real_y", homography_matrix,
         )
         df_ball_proj = ball_tracker.classify_bounce_location(
-            df_ball_proj, config.COURT_WIDTH, config.COURT_LENGTH)
+            df_ball_proj, config.COURT_WIDTH, config.COURT_LENGTH,
+            margin=config.BOUNCE_IN_MARGIN_M)
         out_cols = ["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce", "bounce_in"]
         ball_out = df_ball_proj[df_ball_proj["is_real_bounce"] == 1][out_cols]
         io.write_csv(ball_out, p["ball_real"])
@@ -317,4 +319,12 @@ def _generate_videos(game_path, clips, df_players, df_ball, homography_matrix, v
             continue
         df_p = df_players[df_players["clip"] == key] if not df_players.empty else df_players
         df_b = df_ball[df_ball["clip"] == key] if not df_ball.empty else df_ball
-        video.render_clip_video(clip_dir, df_p, df_b, homography_matrix, out_path)
+        # Nombres reales de los jugadores (del info.json de ESTE clip) para
+        # etiquetar las cajas con el nombre en vez de player_top/player_bottom.
+        try:
+            label_names = pressure.resolve_player_names(pressure.load_clip_info(clip_dir))
+        except (FileNotFoundError, KeyError) as exc:
+            logger.warning("[VIDEO] %s sin nombres de jugador (%s); se usan top/bottom.",
+                           clip_dir.name, exc)
+            label_names = None
+        video.render_clip_video(clip_dir, df_p, df_b, homography_matrix, out_path, label_names)

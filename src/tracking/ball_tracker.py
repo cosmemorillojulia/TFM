@@ -147,62 +147,175 @@ def infer_clip(clip_dir):
     return df
 
 
-def _local_prominence(y, i):
-    """Prominencia de un pico de ``y`` en ``i`` frente a los valles LOCALES.
+def _clean_trajectory(frames, bx, by, max_jump_px):
+    """Limpia outliers de la trayectoria de la pelota de un clip.
 
-    A diferencia de comparar contra el minimo global del array (que se diluye en
-    clips largos y con multiples botes), busca el valle mas cercano a cada lado
-    caminando hacia afuera mientras ``y`` no supere ``y[i]`` desde abajo, que es
-    la definicion estandar de prominencia de un pico.
+    El tracking de pelota (TrackNet) produce a veces saltos imposibles entre
+    frames consecutivos (la pelota "teletransportada" cientos de px), que rompen
+    cualquier regla basada en "el frame siguiente". Esta funcion marca como NO
+    fiables los puntos cuyo salto respecto al frame previo visible supera
+    ``max_jump_px`` (escalado a la resolucion del clip) y los reemplaza por
+    interpolacion lineal entre los vecinos fiables.
+
+    Args:
+        frames: array de indices de frame (de los visibles, en orden).
+        bx, by: arrays de ``ball_x`` / ``ball_y`` (px) de esos frames.
+        max_jump_px: salto maximo plausible (px) entre dos frames visibles
+            consecutivos; por encima se considera outlier.
+
+    Returns:
+        Tupla ``(bx_clean, by_clean)`` con los outliers interpolados.
     """
-    left_min = y[i]
+    n = len(frames)
+    good = np.ones(n, dtype=bool)
+    for i in range(1, n):
+        # Normalizar el salto por la separacion temporal (puede haber huecos).
+        step = max(1, int(frames[i] - frames[i - 1]))
+        jump = np.hypot(bx[i] - bx[i - 1], by[i] - by[i - 1]) / step
+        if jump > max_jump_px:
+            good[i] = False
+
+    bx_clean = bx.astype(float).copy()
+    by_clean = by.astype(float).copy()
+    if good.sum() >= 2:
+        gi = np.where(good)[0]
+        bx_clean = np.interp(np.arange(n), gi, bx[gi])
+        by_clean = np.interp(np.arange(n), gi, by[gi])
+    return bx_clean, by_clean
+
+
+def _stays_same_court(court_y, i, net_y, lookahead, min_pts):
+    """True si tras el evento en ``i`` la pelota NO se va al otro campo (es bote).
+
+    Regla pedida: cuenta como bote si tras el evento la pelota sigue su
+    trayectoria y no cambia de direccion para irse al otro campo. Se mide en
+    coordenadas de PISTA (metros, eje largo ``court_y``), que es robusto y tiene
+    sentido fisico: la red parte la pista en ``net_y``. Un bote ocurre en un
+    campo y la pelota PERMANECE en ese campo los frames siguientes; un raquetazo
+    la TRANSFIERE al otro campo (cruza la red de forma sostenida).
+
+    Aplica por igual a botes en campo top y bottom (la comparacion es respecto a
+    la red, no a un lado concreto).
+
+    Args:
+        court_y: array con la Y de pista (metros) de cada frame visible del clip.
+        i: indice del extremo candidato.
+        net_y: Y de la red en metros (mitad del largo de pista).
+        lookahead: nº de frames visibles a mirar antes y despues.
+        min_pts: nº minimo de puntos validos a cada lado para decidir; si no se
+            alcanza, se acepta (no penalizar por falta de contexto).
+
+    Returns:
+        ``True`` si la pelota se queda en el mismo campo (bote), ``False`` si
+        cruza al otro campo (raquetazo).
+    """
+    lo = max(0, i - lookahead)
+    hi = min(len(court_y), i + lookahead + 1)
+    before = court_y[lo:i]
+    after = court_y[i + 1:hi]
+    if len(before) < min_pts or len(after) < min_pts:
+        return True
+    # Lado de pista (campo) robusto a ruido: mediana a cada lado del evento.
+    side_before = np.median(before) > net_y   # True = campo lejano (top)
+    side_after = np.median(after) > net_y
+    return side_before == side_after
+
+
+def _local_prominence(y, i, kind="max"):
+    """Prominencia LOCAL de un extremo de ``y`` en ``i``.
+
+    Para ``kind="max"`` (bote en campo cercano: ``ball_y`` hace un maximo) mide
+    cuanto sobresale el pico frente a los valles locales a cada lado. Para
+    ``kind="min"`` (bote en campo lejano: ``ball_y`` hace un minimo, porque tras
+    botar la pelota vuelve hacia la camara y su Y crece) mide lo simetrico.
+
+    A diferencia de comparar contra el extremo global del array (que se diluye en
+    clips largos con varios botes), camina hacia afuera a cada lado hasta el
+    valle/cresta local mas cercano (definicion estandar de prominencia).
+    """
+    s = 1.0 if kind == "max" else -1.0   # trabajar siempre como si fuera un maximo
+    yi = s * y[i]
+
+    left_min = yi
     j = i - 1
-    while j >= 0 and y[j] <= y[i]:
-        left_min = min(left_min, y[j])
+    while j >= 0 and s * y[j] <= yi:
+        left_min = min(left_min, s * y[j])
         j -= 1
     if j >= 0:
-        left_min = min(left_min, y[j])
+        left_min = min(left_min, s * y[j])
 
-    right_min = y[i]
+    right_min = yi
     j = i + 1
-    while j < len(y) and y[j] <= y[i]:
-        right_min = min(right_min, y[j])
+    while j < len(y) and s * y[j] <= yi:
+        right_min = min(right_min, s * y[j])
         j += 1
     if j < len(y):
-        right_min = min(right_min, y[j])
+        right_min = min(right_min, s * y[j])
 
-    return y[i] - max(left_min, right_min)
+    return yi - max(left_min, right_min)
 
 
-def _near_player(ball_x, ball_y, players_at_frame, radius):
-    """True si el punto cae dentro de la caja de un jugador (+ radio de margen).
+def _is_racket_hit(ball_x, ball_y, players_at_frame, radius, hit_zone_frac):
+    """True si el candidato es, con mas probabilidad, un golpe de raqueta.
 
-    Se usa para descartar candidatos a bote que en realidad son golpes de
-    raqueta: el golpe ocurre junto al jugador (a la altura del brazo/raqueta,
-    por encima del punto de pie), mientras que un bote real en el suelo cae
-    lejos de las cajas de ambos jugadores, a media pista.
+    Distingue golpe de bote por la ALTURA de la pelota respecto al cuerpo del
+    jugador, no solo por proximidad. Un golpe ocurre cerca del jugador en X y a
+    la altura del torso/cabeza/brazo (parte ALTA de la caja). Un bote en el
+    suelo, aunque caiga cerca del jugador en X (tipico en el fondo de pista),
+    esta a la altura de los PIES o por debajo: ahi NO se descarta.
+
+    Se rechaza solo si la pelota:
+      - cae en la columna del jugador en X (su bbox +/- ``radius``), y
+      - esta por ENCIMA de la zona de pies, es decir su ``ball_y`` queda por
+        encima de ``bbox_y2 - hit_zone_frac * altura_bbox`` (recordar: en
+        pixeles, menor Y = mas arriba en la imagen).
+
+    Asi, un bote a los pies del jugador del fondo (ball_y ~ bbox_y2) se conserva,
+    mientras que un golpe a la altura del hombro (ball_y ~ bbox_y1) se descarta.
     """
     for p in players_at_frame:
-        if (p["bbox_x1"] - radius <= ball_x <= p["bbox_x2"] + radius
-                and p["bbox_y1"] - radius <= ball_y <= p["bbox_y2"] + radius):
+        # Columna del jugador en X ampliada por ``radius``. Un raquetazo se da con
+        # el brazo extendido, asi que la pelota puede caer algo fuera de la bbox.
+        in_x = p["bbox_x1"] - radius <= ball_x <= p["bbox_x2"] + radius
+        if not in_x:
+            continue
+        bbox_h = p["bbox_y2"] - p["bbox_y1"]
+        # Umbral vertical: frontera entre "zona de golpeo" (arriba) y "zona de
+        # pies/suelo" (abajo). Por encima de feet_zone_top => golpe.
+        feet_zone_top = p["bbox_y2"] - hit_zone_frac * bbox_h
+        # En la zona de golpeo (desde bastante por encima de la cabeza, para
+        # cubrir globos/saques, hasta feet_zone_top) => raquetazo, no bote.
+        if ball_y <= feet_zone_top:
             return True
     return False
 
 
-def detect_real_bounces(df_ball, df_players=None,
-                         min_prominence=None, min_distance=None, player_exclusion_px=None):
-    """Detecta botes reales en el suelo por cambio de signo de la velocidad vertical.
+def detect_real_bounces(df_ball, df_players=None, homography_matrix=None,
+                        min_prominence=None, min_distance=None, player_exclusion_px=None,
+                        hit_zone_frac=None, court_margin=None):
+    """Detecta botes reales en el suelo en AMBOS campos (top y bottom).
 
-    Un bote real es un frame donde la pelota pasa de bajar a subir bruscamente:
-    ``ball_y`` (Y en píxeles, crece hacia abajo en la imagen) tiene velocidad
-    positiva (bajando) justo antes y negativa (subiendo) justo después, con
-    suficiente prominencia LOCAL (frente a los valles mas cercanos, no el minimo
-    global del clip). Si se pasa ``df_players``, los candidatos que caen dentro
-    de la caja de un jugador (+ margen) se descartan: son golpes de raqueta en
-    el aire, no botes en el suelo.
+    Un bote es un extremo local de la trayectoria vertical de la pelota:
+      - Campo cercano: ``ball_y`` (px, crece hacia abajo) hace un MAXIMO local
+        (la pelota baja y rebota hacia arriba).
+      - Campo lejano: como la pelota se aleja de la camara, tras botar vuelve
+        hacia ella y su Y crece; aparece como un MINIMO local de ``ball_y``.
 
-    La deteccion se hace POR CLIP de forma independiente (un valle de un clip no
-    debe afectar a la prominencia de otro).
+    Antes de detectar, la trayectoria del clip se LIMPIA (se interpolan los
+    saltos imposibles del tracking), porque la regla principal mira el frame
+    siguiente y sin limpiar seria ruido.
+
+    REGLA PRINCIPAL (pedida): un extremo cuenta como bote si tras el la pelota
+    sigue su trayectoria y NO cambia de direccion para irse al otro campo. Se
+    mide en coordenadas de pista (metros): la pelota debe quedarse en el MISMO
+    lado de la red unos frames despues; si cruza al otro campo, es un raquetazo.
+    Ademas se exige prominencia LOCAL del extremo y se descartan, como guardas
+    secundarias, los golpes claros junto al jugador y los candidatos que
+    proyectan fuera de la pista (ruido).
+
+    La deteccion se hace POR CLIP de forma independiente y es GENERICA: funciona
+    igual para cualquier numero de clips y cualquier game (no hay nada atado a
+    clips concretos).
 
     El resultado se añade como columna ``is_real_bounce`` (0/1) al DataFrame.
 
@@ -217,9 +330,19 @@ def detect_real_bounces(df_ball, df_players=None,
             ``config.BOUNCE_MIN_PROMINENCE``.
         min_distance: separacion minima en frames entre dos botes consecutivos
             del mismo clip. Por defecto ``config.BOUNCE_MIN_DISTANCE``.
-        player_exclusion_px: margen (px) alrededor de la caja de un jugador para
-            descartar un candidato por golpe de raqueta. Por defecto
+        player_exclusion_px: margen (px) en X alrededor de la caja de un jugador
+            para considerar el candidato "en su columna". Por defecto
             ``config.BOUNCE_PLAYER_EXCLUSION_PX``.
+        hit_zone_frac: fraccion superior de la caja del jugador que se considera
+            "zona de golpeo". Un candidato en la columna del jugador y por encima
+            de ``bbox_y2 - hit_zone_frac*altura`` se descarta como golpe; a la
+            altura de los pies se conserva como bote. Por defecto
+            ``config.BOUNCE_HIT_ZONE_FRAC``.
+        homography_matrix: necesaria para la regla principal (campo en metros) y
+            para el filtro de fuera de pista. Si es ``None``, la regla de "mismo
+            campo" y el filtro de pista se omiten (solo extremo + prominencia).
+        court_margin: margen (metros) de tolerancia para el filtro de pista.
+            Por defecto ``config.BOUNCE_IN_MARGIN_M``.
 
     Returns:
         Copia del DataFrame con la columna ``is_real_bounce`` añadida.
@@ -228,6 +351,8 @@ def detect_real_bounces(df_ball, df_players=None,
     min_distance = config.BOUNCE_MIN_DISTANCE if min_distance is None else min_distance
     player_exclusion_px = (config.BOUNCE_PLAYER_EXCLUSION_PX if player_exclusion_px is None
                             else player_exclusion_px)
+    hit_zone_frac = config.BOUNCE_HIT_ZONE_FRAC if hit_zone_frac is None else hit_zone_frac
+    court_margin = config.BOUNCE_IN_MARGIN_M if court_margin is None else court_margin
 
     df = df_ball.copy()
     df["is_real_bounce"] = 0
@@ -237,43 +362,89 @@ def detect_real_bounces(df_ball, df_players=None,
         for (clip, frame), sub in df_players.groupby(["clip", "frame"]):
             players_by_clip_frame[(clip, frame)] = sub.to_dict("records")
 
+    net_y = config.COURT_LENGTH / 2.0
+
     n_total = 0
+    n_rejected_cross = 0
     n_rejected_player = 0
+    n_rejected_offcourt = 0
     for clip, df_clip in df.groupby("clip"):
         visible = df_clip[df_clip["visibility"] == 1].sort_values("frame")
         if len(visible) < 3:
             continue
 
-        y = visible["ball_y"].values
         frames = visible["frame"].values
         idx = visible.index.values
-        vy = np.diff(y)   # velocidad vertical entre frames consecutivos (visibles)
+
+        # Resolucion del clip (primer frame) para escalar el umbral de outlier.
+        # ``ball_x/y`` estan en px de la imagen original; el salto maximo plausible
+        # se define como fraccion de la diagonal, robusto a distintas resoluciones.
+        bx_raw = visible["ball_x"].values.astype(float)
+        by_raw = visible["ball_y"].values.astype(float)
+        diag = float(np.hypot(bx_raw.max() - bx_raw.min(), by_raw.max() - by_raw.min())) or 1.0
+        max_jump = config.BOUNCE_MAX_JUMP_FRAC * diag
+
+        # 1) Limpiar la trayectoria: sin esto, "el frame siguiente" es ruido y la
+        #    regla de continuidad de avance no funciona.
+        bx, y = _clean_trajectory(frames, bx_raw, by_raw, max_jump)
+        vy = np.diff(y)   # velocidad vertical entre frames consecutivos (limpia)
+
+        # 2) Y de pista (metros) de cada frame visible, para la regla de "mismo
+        #    campo" y el filtro de fuera de pista (si hay homografia).
+        if homography_matrix is not None:
+            pts = np.stack([bx, y], axis=1).reshape(-1, 1, 2).astype(np.float64)
+            court_xy = cv2.perspectiveTransform(pts, homography_matrix).reshape(-1, 2)
+            court_y = court_xy[:, 1]
+        else:
+            court_xy = None
+            court_y = None
 
         last_bounce_frame = None
         for i in range(1, len(y) - 1):
-            # Cambio de signo: bajando (vy>0) antes, subiendo (vy<0) despues.
-            if not (vy[i - 1] > 0 and vy[i] < 0):
+            # Un bote es un extremo local de la trayectoria vertical (en AMBOS
+            # campos): MAXIMO de ball_y en campo cercano, MINIMO en campo lejano.
+            if vy[i - 1] > 0 and vy[i] < 0:
+                kind = "max"
+            elif vy[i - 1] < 0 and vy[i] > 0:
+                kind = "min"
+            else:
                 continue
 
-            if _local_prominence(y, i) < min_prominence:
+            if _local_prominence(y, i, kind) < min_prominence:
                 continue
 
             # Distancia minima al bote real anterior ya marcado (mismo clip).
             if last_bounce_frame is not None and (frames[i] - last_bounce_frame) < min_distance:
                 continue
 
-            # Descartar golpes de raqueta: candidato dentro de la caja de un jugador.
+            # REGLA PRINCIPAL: cuenta como bote si tras el evento la pelota sigue
+            # su trayectoria y NO se va al otro campo. Se aplica a top y bottom.
+            if court_y is not None and not _stays_same_court(
+                    court_y, i, net_y, config.BOUNCE_DIR_LOOKAHEAD, config.BOUNCE_DIR_MIN_PTS):
+                n_rejected_cross += 1
+                continue
+
+            # Guarda secundaria: golpe de raqueta claro (pelota a altura de
+            # torso/cabeza en la columna del jugador).
             players_here = players_by_clip_frame.get((clip, int(frames[i])), [])
-            if _near_player(visible["ball_x"].values[i], y[i], players_here, player_exclusion_px):
+            if _is_racket_hit(bx[i], y[i], players_here, player_exclusion_px, hit_zone_frac):
                 n_rejected_player += 1
                 continue
+
+            # Descartar ruido: candidatos que proyectan fuera de la pista.
+            if court_xy is not None:
+                mx, my = court_xy[i]
+                if not (-court_margin <= mx <= config.COURT_WIDTH + court_margin
+                        and -court_margin <= my <= config.COURT_LENGTH + court_margin):
+                    n_rejected_offcourt += 1
+                    continue
 
             df.at[idx[i], "is_real_bounce"] = 1
             last_bounce_frame = frames[i]
             n_total += 1
 
-    logger.info("Botes reales detectados: %d (descartados por golpe de raqueta: %d)",
-                n_total, n_rejected_player)
+    logger.info("Botes reales detectados: %d (descartados | cruza campo: %d | golpe raqueta: %d | "
+                "fuera de pista: %d)", n_total, n_rejected_cross, n_rejected_player, n_rejected_offcourt)
     return df
 
 
