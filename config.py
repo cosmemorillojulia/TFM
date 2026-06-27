@@ -274,9 +274,21 @@ MARGIN_X = 3.0
 # Parametros del KDE y del render.
 GRID_RES = 200                    # nº de celdas a lo largo del eje Y
 KDE_BANDWIDTH = "scott"           # bandwidth de scipy.stats.gaussian_kde
-PLAYER_CMAP = "magma"
+PLAYER_CMAP = "inferno"           # negro -> rojo -> naranja -> amarillo -> blanco
 BALL_CMAP = "hot"
 DPI_EXPORT = 300
+
+# Fondo del heatmap de jugador: negro para un look mas profesional y para que la
+# rampa "inferno" funda las zonas poco pisadas (rojo oscuro) con el fondo y haga
+# brillar en amarillo/blanco las mas frecuentadas.
+PLAYER_HEATMAP_FACECOLOR = "black"
+# Realce de zonas poco frecuentadas en el heatmap de jugador: gamma<1 expande el
+# rango bajo de densidad para que las zonas pisadas alguna vez tambien se vean,
+# no solo las mas frecuentadas (que conservan la mayor intensidad).
+HEATMAP_GAMMA = 0.45
+# Umbral (fraccion del maximo) por debajo del cual se considera "sin pisar" y se
+# funde con el fondo de la pista.
+HEATMAP_LOW_THRESHOLD = 0.02
 
 # Color de fondo de la pista en los plots.
 COURT_FACECOLOR = "#2e6b3a"

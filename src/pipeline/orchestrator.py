@@ -29,6 +29,7 @@ filas al reanudar (no se puede inferir del propio master, que es concatenado).
 """
 
 import logging
+import re
 from pathlib import Path
 
 import numpy as np
@@ -227,7 +228,7 @@ def _finalize(game_path, clips, output_dir, p):
 
     df_players_proj, df_ball_proj = _project_masters(
         df_players, df_ball, p, homography_matrix)
-    _generate_plots(df_players_proj, df_ball_proj, p["plots"])
+    _generate_plots(df_players_proj, df_ball_proj, p["plots"], clips)
     _generate_videos(game_path, clips, df_players, df_ball, homography_matrix, p["videos"])
 
 
@@ -280,30 +281,110 @@ def _project_masters(df_players, df_ball, p, homography_matrix):
     return df_players_proj, df_ball_proj
 
 
-def _generate_plots(df_players_proj, df_ball_proj, plots_dir):
-    """Genera los PNG de plots a partir de los DataFrames ya proyectados."""
+def _slug(name):
+    """Convierte un nombre de jugador en un slug seguro para nombre de fichero.
+
+    ``"Carlos Alcaraz"`` -> ``"carlos_alcaraz"``.
+    """
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "jugador"
+
+
+def _side_normalization_by_clip(clips):
+    """Devuelve ``(names, flip_clips)`` para normalizar el lado por clip.
+
+    Convencion canonica: ``player_1`` arriba, ``player_2`` abajo. Un clip se
+    refleja entero (giro de 180º) cuando en el ``player_1`` jugaba en el lado
+    contrario al suyo, es decir ``player_1_position == "bottom"``. Reflejar el
+    clip COMPLETO (jugadores y botes con la misma regla) mantiene coherente quien
+    esta en cada mitad: tras normalizar, el lado de un bote indica el campo de un
+    jugador concreto.
+
+    Returns:
+        names: dict ``{(clip_key, player_label): nombre_real}``.
+        flip_clips: set de ``clip_key`` que deben reflejarse.
+    """
+    names, flip_clips = {}, set()
+    for clip_dir in clips:
+        key = loaders.clip_key(clip_dir)
+        try:
+            info = pressure.load_clip_info(clip_dir)
+            clip_names = pressure.resolve_player_names(info)
+            p1_pos = info["player_1_position"]
+        except (FileNotFoundError, KeyError) as exc:
+            logger.warning("[PLOTS] %s sin nombres de jugador (%s); se usan top/bottom.",
+                           clip_dir.name, exc)
+            names[(key, "player_top")] = "player_top"
+            names[(key, "player_bottom")] = "player_bottom"
+            continue
+        names[(key, "player_top")] = clip_names["player_top"]
+        names[(key, "player_bottom")] = clip_names["player_bottom"]
+        if p1_pos == "bottom":
+            flip_clips.add(key)
+    return names, flip_clips
+
+
+def _flip_xy(df, flip_clips, x_col, y_col):
+    """Refleja 180º (``x->W-x``, ``y->L-y``) las filas cuyos clips se normalizan."""
+    df = df.copy()
+    flip = df["clip"].isin(flip_clips)
+    df.loc[flip, x_col] = config.COURT_WIDTH - df.loc[flip, x_col]
+    df.loc[flip, y_col] = config.COURT_LENGTH - df.loc[flip, y_col]
+    return df
+
+
+def _normalize_player_side(df, names, flip_clips):
+    """Añade ``player_name`` y refleja al lado canonico (player_1 arriba)."""
+    df = df.copy()
+    df["player_name"] = [
+        names.get((c, lbl), lbl)
+        for c, lbl in zip(df["clip"], df["player_label"])
+    ]
+    return _flip_xy(df, flip_clips, "real_x", "real_y")
+
+
+def _generate_plots(df_players_proj, df_ball_proj, plots_dir, clips):
+    """Genera los PNG de plots a partir de los DataFrames ya proyectados.
+
+    Los heatmaps se agrupan por JUGADOR REAL (nombre del info.json) y se normaliza
+    su lado: player_1 siempre arriba, player_2 siempre abajo. Como cada jugador
+    alterna de lado durante el game, sin normalizar (a) agrupar por
+    ``player_top``/``player_bottom`` mezclaria a las dos personas y (b) un mismo
+    jugador apareceria en ambas mitades.
+    """
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    players_by_label = {}
-    for label, sub in df_players_proj.groupby("player_label"):
+    # Normalizacion de lado por clip (player_1 arriba, player_2 abajo). La MISMA
+    # regla de flip se aplica a jugadores y a botes para que, tras normalizar, el
+    # lado del bote identifique el campo de un jugador concreto.
+    names, flip_clips = _side_normalization_by_clip(clips)
+    df_players_proj = _normalize_player_side(df_players_proj, names, flip_clips)
+
+    players_by_name = {}
+    for name, sub in df_players_proj.groupby("player_name"):
         real_x = sub["real_x"].to_numpy()
         real_y = sub["real_y"].to_numpy()
-        players_by_label[label] = (real_x, real_y)
+        players_by_name[name] = (real_x, real_y)
         heatmaps.export_player_heatmap(
-            real_x, real_y, title=f"Heatmap — {label}  (n={len(sub)} frames)",
-            out_path=plots_dir / f"{label}_heatmap.png",
+            real_x, real_y, title=f"Heatmap — {name}  (n={len(sub)} frames)",
+            out_path=plots_dir / f"{_slug(name)}_heatmap.png",
         )
+
+    heatmaps.export_combined_player_heatmap(
+        players_by_name, plots_dir / "players_combined_heatmap.png",
+    )
 
     bounces_x, bounces_y = np.empty(0), np.empty(0)
     if not df_ball_proj.empty and "ball_real_x" in df_ball_proj.columns:
         valid = df_ball_proj.dropna(subset=["ball_real_x", "ball_real_y"])
         bounces = valid[valid["is_real_bounce"] == 1]
+        # Reflejar los botes con la misma regla de lado que los jugadores.
+        bounces = _flip_xy(bounces, flip_clips, "ball_real_x", "ball_real_y")
         bounces_x = bounces["ball_real_x"].to_numpy()
         bounces_y = bounces["ball_real_y"].to_numpy()
         heatmaps.export_bounce_map(bounces_x, bounces_y, plots_dir / "ball_bounces_map.png")
 
     heatmaps.export_combined_view(
-        players_by_label, bounces_x, bounces_y, plots_dir / "combined_view.png",
+        players_by_name, bounces_x, bounces_y, plots_dir / "combined_view.png",
     )
     logger.info("Plots generados en %s", plots_dir)
 
