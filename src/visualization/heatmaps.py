@@ -84,13 +84,17 @@ def _kde_grid(real_x, real_y):
     return kde(np.vstack([grid_x.ravel(), grid_y.ravel()])).reshape(grid_x.shape)
 
 
-def _draw_kde_grid(ax, z, cmap, emphasize_low=False):
+def _draw_kde_grid(ax, z, cmap, emphasize_low=False, vmax=None):
     """Pinta una densidad ``z`` ya evaluada en la rejilla. Devuelve la imagen o None.
 
     Si ``emphasize_low`` es True, se realza el rango bajo de densidad para que
     cualquier zona pisada alguna vez quede visible (no solo las mas frecuentadas):
     se aplica una normalizacion no lineal (``PowerNorm`` con gamma < 1) y se funde
     con el fondo negro unicamente la densidad practicamente nula.
+
+    ``vmax`` fija el tope de la escala de color. Si es None se usa ``z.max()``
+    (escala propia); pasar un ``vmax`` comun a varios graficos los hace comparables
+    en magnitud absoluta (un mismo color significa la misma densidad).
     """
     if z is None:
         return None
@@ -100,17 +104,17 @@ def _draw_kde_grid(ax, z, cmap, emphasize_low=False):
         return ax.imshow(
             z, origin="lower",
             extent=[xs.min(), xs.max(), ys.min(), ys.max()],
-            cmap=cmap, alpha=0.85, aspect="equal",
+            cmap=cmap, alpha=0.85, aspect="equal", vmax=vmax,
         )
 
     # Realce del rango bajo: gamma<1 expande las densidades pequeñas hacia
     # valores de color visibles, manteniendo el gradiente hacia las zonas mas
     # frecuentadas. Lo que esta por debajo de un umbral minimo (zonas nunca
     # pisadas) se funde con el fondo negro de la pista.
-    zmax = z.max()
-    if zmax <= 0:
+    top = z.max() if vmax is None else vmax
+    if top <= 0:
         return None
-    thresh = zmax * config.HEATMAP_LOW_THRESHOLD
+    thresh = top * config.HEATMAP_LOW_THRESHOLD
     z_masked = np.ma.masked_less(z, thresh)
     cmap_obj = plt.get_cmap(cmap).copy()
     cmap_obj.set_bad(config.PLAYER_HEATMAP_FACECOLOR)  # sin pisar -> color de fondo
@@ -118,25 +122,26 @@ def _draw_kde_grid(ax, z, cmap, emphasize_low=False):
         z_masked, origin="lower",
         extent=[xs.min(), xs.max(), ys.min(), ys.max()],
         cmap=cmap_obj, aspect="equal",
-        norm=PowerNorm(gamma=config.HEATMAP_GAMMA, vmin=thresh, vmax=zmax),
+        norm=PowerNorm(gamma=config.HEATMAP_GAMMA, vmin=thresh, vmax=top),
     )
 
 
-def _kde_layer(ax, real_x, real_y, cmap, emphasize_low=False):
+def _kde_layer(ax, real_x, real_y, cmap, emphasize_low=False, vmax=None):
     """Evalua y pinta el KDE de una nube de puntos. Devuelve la imagen o None."""
-    return _draw_kde_grid(ax, _kde_grid(real_x, real_y), cmap, emphasize_low)
+    return _draw_kde_grid(ax, _kde_grid(real_x, real_y), cmap, emphasize_low, vmax)
 
 
-def _render_occupancy_heatmap(z, title, out_path):
+def _render_occupancy_heatmap(z, title, out_path, vmax=None):
     """Dibuja y guarda un heatmap de ocupacion (fondo negro, rampa inferno).
 
     Recibe la densidad ``z`` ya evaluada en la rejilla (``_kde_grid``). Logica
     comun al heatmap de un jugador y al combinado de ambos: solo cambia como se
-    obtiene ``z`` (KDE de un jugador, o suma de los KDE por jugador).
+    obtiene ``z`` (KDE de un jugador, o suma de los KDE por jugador). ``vmax`` fija
+    el tope de la escala para hacer varios graficos comparables (ver _draw_kde_grid).
     """
     fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
     ax.set_facecolor(config.PLAYER_HEATMAP_FACECOLOR)
-    im = _draw_kde_grid(ax, z, config.PLAYER_CMAP, emphasize_low=True)
+    im = _draw_kde_grid(ax, z, config.PLAYER_CMAP, emphasize_low=True, vmax=vmax)
     _draw_court_2d(ax)
     if im is not None:
         cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
@@ -160,10 +165,25 @@ def _render_occupancy_heatmap(z, title, out_path):
     plt.close(fig)
 
 
-def export_player_heatmap(real_x, real_y, title, out_path):
-    """Genera y guarda el heatmap KDE de ocupacion de un jugador."""
-    _render_occupancy_heatmap(_kde_grid(real_x, real_y), title, out_path)
+def export_player_heatmap(real_x, real_y, title, out_path, vmax=None):
+    """Genera y guarda el heatmap KDE de ocupacion de un jugador.
+
+    ``vmax`` (opcional) fija el tope de densidad de la escala; util para hacer
+    comparables varios heatmaps del mismo jugador (p.ej. con/sin presion).
+    """
+    _render_occupancy_heatmap(_kde_grid(real_x, real_y), title, out_path, vmax=vmax)
     logger.info("Heatmap de jugador guardado en %s", out_path)
+
+
+def kde_max(real_x, real_y):
+    """Maximo del KDE de una nube de puntos (0 si no hay datos suficientes).
+
+    Sirve tanto para ocupacion de jugador como para botes. Permite calcular fuera
+    un ``vmax`` comun a varios graficos antes de exportarlos, para que compartan
+    escala (un mismo color significa la misma densidad).
+    """
+    z = _kde_grid(real_x, real_y)
+    return 0.0 if z is None else float(z.max())
 
 
 def export_combined_player_heatmap(players_by_label, out_path,
@@ -191,11 +211,16 @@ def export_combined_player_heatmap(players_by_label, out_path,
     logger.info("Heatmap combinado de jugadores guardado en %s", out_path)
 
 
-def export_bounce_map(bounces_x, bounces_y, out_path, title="Rebotes de pelota"):
-    """Genera y guarda el mapa de rebotes de la pelota (puntos + KDE de densidad)."""
+def export_bounce_map(bounces_x, bounces_y, out_path, title="Rebotes de pelota",
+                      vmax=None):
+    """Genera y guarda el mapa de rebotes de la pelota (puntos + KDE de densidad).
+
+    ``vmax`` (opcional) fija el tope de densidad de la escala; util para comparar
+    varios mapas de rebotes con la misma escala (p.ej. con/sin presion).
+    """
     fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
     ax.set_facecolor(config.COURT_FACECOLOR)
-    im = _kde_layer(ax, bounces_x, bounces_y, config.BALL_CMAP)
+    im = _kde_layer(ax, bounces_x, bounces_y, config.BALL_CMAP, vmax=vmax)
     _draw_court_2d(ax)
     ax.scatter(bounces_x, bounces_y, s=55, marker="X", color="cyan",
                edgecolors="white", linewidths=1.2, label=f"rebotes (n={len(bounces_x)})")
