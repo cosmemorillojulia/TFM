@@ -1,17 +1,12 @@
 ﻿Dataset/
+Dataset_Clutch/
 Dataset.zip
 .vscode/
 .claude/
 desktop.ini
 **/desktop.ini
-Easy_Demo_CV_With_Pretrained_YOLO.ipynb
 
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
-
-yolov8s.pt
-
-Dataset_Clutch/
-Dataset/
