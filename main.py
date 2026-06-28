@@ -51,6 +51,12 @@ def parse_args(argv=None):
         help="Exportar tambien los CSV master a un Excel al terminar.",
     )
     parser.add_argument(
+        "--force-plots", action="store_true",
+        help="Rehacer los plots (heatmaps generales y por jugador) aunque ya "
+             "existan. No toca tracking ni videos ya generados. Util al iterar el "
+             "estilo de los graficos.",
+    )
+    parser.add_argument(
         "--log-level", default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
         help="Nivel de detalle del log (por defecto INFO).",
@@ -110,7 +116,8 @@ def main(argv=None):
     # Ejecutar el flujo incremental/reanudable del game. No se borra nada:
     # las etapas ya completas se saltan y solo se computa lo que falte.
     output_dir.mkdir(parents=True, exist_ok=True)
-    orchestrator.run_game(game_path, output_dir, export_excel=args.excel)
+    orchestrator.run_game(game_path, output_dir, export_excel=args.excel,
+                          force_plots=args.force_plots)
 
     logger.info("Hecho.")
     return 0

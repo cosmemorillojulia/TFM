@@ -84,13 +84,19 @@ def _kde_grid(real_x, real_y):
     return kde(np.vstack([grid_x.ravel(), grid_y.ravel()])).reshape(grid_x.shape)
 
 
-def _draw_kde_grid(ax, z, cmap, emphasize_low=False, vmax=None):
+def _draw_kde_grid(ax, z, cmap, emphasize_low=False, vmax=None, mask_low=False):
     """Pinta una densidad ``z`` ya evaluada en la rejilla. Devuelve la imagen o None.
 
     Si ``emphasize_low`` es True, se realza el rango bajo de densidad para que
     cualquier zona pisada alguna vez quede visible (no solo las mas frecuentadas):
     se aplica una normalizacion no lineal (``PowerNorm`` con gamma < 1) y se funde
     con el fondo negro unicamente la densidad practicamente nula.
+
+    Si ``mask_low`` es True (capa lisa, sin realce), las celdas por debajo del
+    umbral se vuelven TRANSPARENTES en vez de pintarse con el color "cero" del
+    cmap. Asi una capa superpuesta (p.ej. el KDE de botes sobre el heatmap de
+    movimiento) solo tiñe donde de verdad hay densidad y no oscurece el resto del
+    mapa con su fondo, ni "sangra" a la mitad contraria por las colas del KDE.
 
     ``vmax`` fija el tope de la escala de color. Si es None se usa ``z.max()``
     (escala propia); pasar un ``vmax`` comun a varios graficos los hace comparables
@@ -101,6 +107,13 @@ def _draw_kde_grid(ax, z, cmap, emphasize_low=False, vmax=None):
     xs, ys, _, _ = _make_grid()
 
     if not emphasize_low:
+        top = z.max() if vmax is None else vmax
+        if mask_low and top > 0:
+            # Oculta la densidad casi nula (colas del KDE) para no oscurecer ni
+            # invadir el resto del mapa: las celdas bajas quedan transparentes.
+            z = np.ma.masked_less(z, top * config.HEATMAP_LOW_THRESHOLD)
+            cmap = plt.get_cmap(cmap).copy()
+            cmap.set_bad(alpha=0.0)
         return ax.imshow(
             z, origin="lower",
             extent=[xs.min(), xs.max(), ys.min(), ys.max()],
@@ -126,9 +139,11 @@ def _draw_kde_grid(ax, z, cmap, emphasize_low=False, vmax=None):
     )
 
 
-def _kde_layer(ax, real_x, real_y, cmap, emphasize_low=False, vmax=None):
+def _kde_layer(ax, real_x, real_y, cmap, emphasize_low=False, vmax=None,
+               mask_low=False):
     """Evalua y pinta el KDE de una nube de puntos. Devuelve la imagen o None."""
-    return _draw_kde_grid(ax, _kde_grid(real_x, real_y), cmap, emphasize_low, vmax)
+    return _draw_kde_grid(ax, _kde_grid(real_x, real_y), cmap, emphasize_low,
+                          vmax, mask_low=mask_low)
 
 
 def _render_occupancy_heatmap(z, title, out_path, vmax=None):
@@ -222,8 +237,10 @@ def export_bounce_map(bounces_x, bounces_y, out_path, title="Rebotes de pelota",
     ax.set_facecolor(config.COURT_FACECOLOR)
     im = _kde_layer(ax, bounces_x, bounces_y, config.BALL_CMAP, vmax=vmax)
     _draw_court_2d(ax)
-    ax.scatter(bounces_x, bounces_y, s=55, marker="X", color="cyan",
-               edgecolors="white", linewidths=1.2, label=f"rebotes (n={len(bounces_x)})")
+    # Botes como puntos redondos cyan con borde negro super fino (mismo estilo que
+    # export_player_movement_and_bounces), para distinguirlos del KDE de fondo.
+    ax.scatter(bounces_x, bounces_y, s=28, marker="o", color="cyan", alpha=0.85,
+               edgecolors="black", linewidths=0.25, label=f"rebotes (n={len(bounces_x)})")
     if im is not None:
         cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
         cbar.set_label("densidad de rebotes")
@@ -235,6 +252,64 @@ def export_bounce_map(bounces_x, bounces_y, out_path, title="Rebotes de pelota",
     fig.savefig(out_path, dpi=config.DPI_EXPORT, bbox_inches="tight")
     plt.close(fig)
     logger.info("Mapa de rebotes guardado en %s", out_path)
+
+
+def export_player_movement_and_bounces(real_x, real_y, bounces_x, bounces_y,
+                                       title, out_path, vmax=None, bounce_vmax=None):
+    """Heatmap de movimiento de un jugador + mapa de sus botes, en el MISMO mapa.
+
+    Combina en un solo grafico los dos analisis de un jugador, que no se solapan
+    porque caen en mitades distintas de la pista:
+    - su MOVIMIENTO, como heatmap KDE (rampa ``inferno``, realce de zonas poco
+      pisadas) en SU mitad,
+    - sus BOTES, como mapa de densidad KDE (rampa ``hot``) + puntos cyan casi
+      opacos en la mitad CONTRARIA (sus golpes botan en el campo del rival).
+
+    Mantiene el look de ``export_player_heatmap`` (fondo negro, inferno, gamma)
+    para el movimiento y el de ``export_bounce_map`` (KDE ``hot`` + marcadores
+    cyan) para los botes. Las dos rampas conviven sin chocar porque ocupan mitades
+    distintas. Solo se rotula la colorbar del movimiento (la densidad de botes da
+    contexto visual, sin barra propia, para no recargar el grafico).
+
+    Args:
+        vmax: tope de densidad del heatmap de MOVIMIENTO; comun a varios graficos
+            del mismo jugador (global / con / sin presion) para que sean comparables.
+        bounce_vmax: idem para el KDE de BOTES, para comparar con/sin presion con la
+            misma escala de densidad de botes.
+    """
+    fig, ax = plt.subplots(figsize=(_FIG_W, _FIG_H))
+    ax.set_facecolor(config.PLAYER_HEATMAP_FACECOLOR)
+    im = _draw_kde_grid(ax, _kde_grid(real_x, real_y), config.PLAYER_CMAP,
+                        emphasize_low=True, vmax=vmax)
+    # KDE de densidad de botes (rampa 'hot') bajo los marcadores. ``mask_low`` deja
+    # transparente la densidad casi nula para que la rampa 'hot' solo tiña la mitad
+    # de los botes y no oscurezca ni invada la mitad del movimiento (inferno).
+    if len(bounces_x):
+        _kde_layer(ax, np.asarray(bounces_x), np.asarray(bounces_y),
+                   config.BALL_CMAP, vmax=bounce_vmax, mask_low=True)
+    _draw_court_2d(ax)
+    if len(bounces_x):
+        # Puntos cyan casi opacos (alpha alto): marcan cada bote sin tapar el KDE.
+        # Borde negro para que se distingan sobre las zonas claras del KDE 'hot'.
+        ax.scatter(bounces_x, bounces_y, s=28, marker="o", color="cyan",
+                   alpha=0.85, edgecolors="black", linewidths=0.25,
+                   label=f"botes (n={len(bounces_x)})")
+        ax.legend(loc="upper right", fontsize=8)
+    if im is not None:
+        cbar = fig.colorbar(im, ax=ax, fraction=0.04, pad=0.02)
+        cbar.set_label("Densidad de ocupación (norm.)")
+        # Misma normalizacion no lineal que el heatmap de jugador: ticks en
+        # posiciones visualmente equiespaciadas (ver _render_occupancy_heatmap).
+        fracs = [0.0, 0.25, 0.5, 0.75, 1.0]
+        cbar.set_ticks([im.norm.inverse(f) for f in fracs])
+        cbar.set_ticklabels([f"{f:.2f}" for f in fracs])
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("y (m)")
+    ax.set_title(title)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=config.DPI_EXPORT, bbox_inches="tight")
+    plt.close(fig)
+    logger.info("Mapa movimiento+botes guardado en %s", out_path)
 
 
 def export_combined_view(players_by_label, bounces_x, bounces_y, out_path):

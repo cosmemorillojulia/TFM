@@ -1,31 +1,38 @@
-"""Orquestacion incremental y reanudable del procesamiento de un game.
+"""El flujo del sistema: orquestacion incremental y reanudable de un game.
 
-``run_game`` procesa un game completo en etapas con dependencia estricta
-(jugadores -> pelota -> proyeccion/plots/videos) y cache por clip: antes de
-computar una etapa sobre un clip se comprueba su sentinela; si existe, se salta.
-Nada se borra: si una ejecucion anterior dejo resultados parciales, se continua
-desde donde se quedo.
+Este modulo es el GUION del proyecto. ``run_game`` recorre un game completo y va
+llamando, en un orden estricto, a los modulos que generan cada artefacto:
+
+    Paso 1  jugadores + presion   (tracking.player_tracker + data.pressure)
+    Paso 2  pelota                (tracking.ball_tracker)
+    Paso 3  homografia + proyeccion a metros        (geometry.homography)
+    Paso 4  plots generales de ambos jugadores      (visualization.heatmaps)
+    Paso 5  plots por jugador (movimiento + botes)  (visualization.pressure_compare)
+    Paso 6  videos por clip                         (visualization.video)
+
+Los pasos 1 y 2 corren clip a clip (la unidad es el clip: TrackNet necesita 3
+frames seguidos y ByteTrack continuidad temporal). Los pasos 3-6 (``_finalize``)
+corren una sola vez, cuando TODOS los clips ya tienen jugadores y pelota, porque
+homografia/plots/videos necesitan el game entero.
+
+Es incremental y reanudable con cache por clip: antes de computar una etapa sobre
+un clip se comprueba su sentinela; si existe, se salta. Nada se borra: si una
+ejecucion anterior dejo resultados parciales, se continua desde donde se quedo. La
+acumulacion en los CSV master es por append; los sentinelas evitan duplicar filas
+al reanudar (no se puede inferir del propio master, que es concatenado).
 
 Estructura de outputs bajo ``output_dir``:
 
-    <output-dir>/tracking/players_master.csv   -> jugadores acumulados (todos los clips)
+    <output-dir>/tracking/players_master.csv   -> jugadores acumulados (con presion)
     <output-dir>/tracking/ball_master.csv      -> pelota acumulada
+    <output-dir>/tracking/points_pressure.csv  -> presion por punto (pressure_p1/p2)
     <output-dir>/tracking/.done_players/<clip> -> sentinela de etapa jugadores
     <output-dir>/tracking/.done_ball/<clip>    -> sentinela de etapa pelota
     <output-dir>/projected/player_real_coords.csv -> jugadores en metros
-    <output-dir>/projected/ball_real_coords.csv   -> pelota en metros
-    <output-dir>/plots/                         -> heatmaps, rebotes, vista combinada
+    <output-dir>/projected/ball_real_coords.csv   -> botes reales en metros
+    <output-dir>/plots/                         -> heatmaps generales + carpeta por jugador
     <output-dir>/videos/<clip>.mp4              -> predicciones dibujadas por clip
     <output-dir>/court_points.json              -> cache de esquinas
-
-Reglas:
-    - La etapa de pelota de un clip solo corre si ya esta hecha la de jugadores.
-    - Proyeccion/plots/videos solo corren cuando TODOS los clips tienen jugadores
-      y pelota acumulados.
-    - Si todo esta completo al arrancar, no se hace nada.
-
-La acumulacion en los CSV master es por append; los sentinelas evitan duplicar
-filas al reanudar (no se puede inferir del propio master, que es concatenado).
 """
 
 import logging
@@ -40,7 +47,7 @@ from src.data import loaders, pressure
 from src.geometry import homography
 from src.tracking import ball_tracker, player_tracker
 from src.utils import io
-from src.visualization import heatmaps, video
+from src.visualization import heatmaps, pressure_compare, video
 
 logger = logging.getLogger(__name__)
 
@@ -100,13 +107,27 @@ def check_stage(output_dir, clip, stage):
     raise ValueError(f"Etapa desconocida: {stage!r} (usa 'players', 'ball' o 'final').")
 
 
-def run_game(game_path, output_dir, export_excel=False):
-    """Procesa un game de forma incremental y reanudable.
+def run_game(game_path, output_dir, export_excel=False, force_plots=False):
+    """El FLUJO completo de un game: llama en orden a cada etapa del pipeline.
+
+    Esta funcion es el guion del sistema. Recorre los clips y va invocando, en un
+    orden estricto, los modulos que generan cada artefacto:
+
+        Paso 1  jugadores + presion   (tracking.player_tracker + data.pressure)
+        Paso 2  pelota                (tracking.ball_tracker)
+        Pasos 3-6  etapa final        (ver _finalize: homografia/proyeccion,
+                                       plots generales, plots por jugador, videos)
+
+    Es incremental y reanudable a TODOS los niveles: cada clip deja un sentinela al
+    terminar tracking (jugadores/pelota), y en la etapa final cada sub-paso se salta
+    si su salida ya existe. Al relanzar solo se computa lo que falte, sin duplicar
+    filas; p.ej. si solo faltan los videos, solo se generan los videos.
 
     Args:
-        game_path: ruta a la carpeta del game (p.ej. ``Dataset/game8``).
+        game_path: ruta a la carpeta del game (p.ej. ``Dataset_Clutch``).
         output_dir: carpeta de salida del run.
         export_excel: si ``True``, exporta los CSV master a un Excel al final.
+        force_plots: si ``True``, rehace los plots (pasos 4 y 5) aunque ya existan.
     """
     game_path = Path(game_path)
     output_dir = Path(output_dir)
@@ -120,14 +141,16 @@ def run_game(game_path, output_dir, export_excel=False):
                 game_path.name, len(clips), ", ".join(c.name for c in clips))
 
     # ---- Cortocircuito: todo completo ----
+    # Con --force-plots no se cortocircuita aunque todo este hecho: hay que rehacer
+    # los plots.
     all_players = all(check_stage(output_dir, c, "players") for c in clips)
     all_ball = all(check_stage(output_dir, c, "ball") for c in clips)
     final_done = check_stage(output_dir, clips, "final")
-    if all_players and all_ball and final_done:
+    if all_players and all_ball and final_done and not force_plots:
         logger.info("Nada que hacer: todas las etapas ya estan completas en %s.", output_dir)
         return
 
-    # ---- Etapa 1: jugadores + presion por clip (append al master + sentinela) ----
+    # ---- Paso 1: jugadores + presion por clip (append al master + sentinela) ----
     # Cada clip se procesa de forma autocontenida y en este orden:
     #   info.json -> modelos de vision -> resolver presion con la info ya leida
     #   -> guardar (players_master con columna "pressure" + points_pressure).
@@ -155,7 +178,7 @@ def run_game(game_path, output_dir, export_excel=False):
         logger.info("[JUGADORES] %s acumulado (%d filas) | presion punto: %s.",
                     clip_dir.name, len(df_players), pressure.compute_pressure(info))
 
-    # ---- Etapa 2: pelota por clip (requiere jugadores del clip) ----
+    # ---- Paso 2: pelota por clip (requiere jugadores del clip) ----
     for clip_dir in clips:
         if check_stage(output_dir, clip_dir, "ball"):
             logger.info("[PELOTA] %s ya procesado; se salta.", clip_dir.name)
@@ -170,7 +193,9 @@ def run_game(game_path, output_dir, export_excel=False):
         io.mark_clip_done(p["done_ball"], clip_dir.name)
         logger.info("[PELOTA] %s acumulado (%d filas).", clip_dir.name, len(df_ball))
 
-    # ---- Etapa 3: proyeccion + plots + videos (solo si todo esta acumulado) ----
+    # ---- Pasos 3-6: proyeccion + plots + videos (solo si todo esta acumulado) --
+    # Toda la etapa final (ver _finalize) solo corre cuando TODOS los clips tienen
+    # ya jugadores y pelota, porque homografia/plots/videos necesitan el game entero.
     if not all(check_stage(output_dir, c, "ball") for c in clips):
         pendientes = [c.name for c in clips if not check_stage(output_dir, c, "ball")]
         logger.warning(
@@ -178,10 +203,14 @@ def run_game(game_path, output_dir, export_excel=False):
             "Vuelve a lanzar para completar.", len(pendientes), ", ".join(pendientes))
         return
 
-    if check_stage(output_dir, clips, "final"):
+    # La etapa final se entra siempre que no este 100% completa (o si se fuerza
+    # rehacer plots): _finalize decide internamente, por existencia de fichero, que
+    # sub-paso falta (proyeccion/plots/videos) y solo genera eso. Asi, si solo
+    # faltan videos, no se rehacen los plots.
+    if not force_plots and check_stage(output_dir, clips, "final"):
         logger.info("[FINAL] Proyecciones, plots y videos ya generados; se salta.")
     else:
-        _finalize(game_path, clips, output_dir, p)
+        _finalize(game_path, clips, output_dir, p, force_plots=force_plots)
 
     # ---- Export final a Excel (opcional) ----
     if export_excel:
@@ -214,21 +243,77 @@ def _append_point_pressure(info, points_pressure_csv):
     io.append_csv(row, points_pressure_csv)
 
 
-def _finalize(game_path, clips, output_dir, p):
-    """Etapa final: homografia, proyeccion a metros, plots y videos por clip."""
-    homography_matrix = _resolve_homography(game_path, clips, output_dir)
+def _plots_done(p, clips):
+    """¿Estan ya generados los plots de la etapa final (pasos 4 y 5)?
 
+    Deteccion por existencia de fichero (no hay sentinela: cada PNG es idempotente
+    y se sobrescribe sin acumular). Se consideran completos si existen los tres
+    plots GENERALES (paso 4) y al menos una carpeta de jugador con su ``general.png``
+    (paso 5). No se enumeran los nombres de jugador (eso exigiria leer los info.json)
+    porque para decidir "ya hay plots por jugador" basta con que exista alguno.
+    """
+    plots_dir = p["plots"]
+    if not plots_dir.exists():
+        return False
+    generales = (
+        (plots_dir / "combined_view.png").exists()
+        and (plots_dir / "players_combined_heatmap.png").exists()
+        and (plots_dir / "ball_bounces_map.png").exists()
+    )
+    por_jugador = any(
+        (d / "general.png").exists() for d in plots_dir.iterdir() if d.is_dir()
+    )
+    return generales and por_jugador
+
+
+def _finalize(game_path, clips, output_dir, p, force_plots=False):
+    """Etapa final del flujo, una vez TODOS los clips tienen jugadores y pelota.
+
+    Encadena los pasos 3 a 6 del pipeline (los 1 y 2 —jugadores y pelota— los hace
+    ``run_game`` clip a clip). Cada paso llama a un modulo y entrega su salida al
+    siguiente; el orden es deliberado y estricto:
+
+        3. homografia + proyeccion a metros   (geometry + ball_tracker)
+        4. plots generales de ambos jugadores (visualization.heatmaps)
+        5. plots por jugador (movimiento+botes, general y con/sin presion)
+        6. videos por clip                    (visualization.video)  <- siempre el ultimo
+
+    Cada sub-etapa con coste se salta si su salida ya existe (deteccion por
+    existencia de fichero, idempotente), de modo que se reanuda desde donde se
+    quedo: si solo faltan videos, solo se generan los videos. ``force_plots``
+    fuerza rehacer los plots (4 y 5) aunque ya existan.
+    """
+    # --- Paso 3: homografia + proyeccion a metros -------------------------------
+    # Siempre se prepara en memoria (es barato: leer los master, detectar botes y
+    # proyectar) porque tanto los plots como los videos necesitan estos datos. La
+    # reescritura de los CSV proyectados tambien es trivial y los deja al dia para
+    # que el paso 5 (que los lee de disco) use la version actual.
+    homography_matrix = _resolve_homography(game_path, clips, output_dir)
     df_players = pd.read_csv(p["players_master"]) if p["players_master"].exists() \
         else pd.DataFrame()
     df_ball = pd.read_csv(p["ball_master"]) if p["ball_master"].exists() else pd.DataFrame()
-
     if not df_ball.empty:
         df_ball = ball_tracker.detect_real_bounces(
             df_ball, df_players, homography_matrix=homography_matrix)
-
     df_players_proj, df_ball_proj = _project_masters(
         df_players, df_ball, p, homography_matrix)
-    _generate_plots(df_players_proj, df_ball_proj, p["plots"], clips)
+
+    # --- Pasos 4-5: plots (generales + por jugador) -----------------------------
+    # Coste real (KDE). Se saltan si ya estan generados, salvo force_plots. Asi, si
+    # solo faltan los videos, no se rehacen los plots que ya existen.
+    if force_plots or not _plots_done(p, clips):
+        # Paso 4: plots generales (heatmaps de ambos jugadores + mapa de rebotes).
+        _generate_plots(df_players_proj, df_ball_proj, p["plots"], clips)
+        # Paso 5: plots por jugador (movimiento + sus botes; general y con/sin
+        # presion). Lee los CSV proyectados que el paso 3 acaba de escribir y deja
+        # un PNG por jugador en plots/<jugador>/.
+        pressure_compare.generate(output_dir, clips)
+    else:
+        logger.info("[FINAL] Plots ya generados; se saltan (usa --force-plots para rehacer).")
+
+    # --- Paso 6: videos por clip (lo ultimo del pipeline) -----------------------
+    # _generate_videos ya genera SOLO los <clip>.mp4 que falten (salta los que
+    # existen), asi que reanuda por clip sin tocar los ya hechos.
     _generate_videos(game_path, clips, df_players, df_ball, homography_matrix, p["videos"])
 
 
@@ -359,15 +444,13 @@ def _generate_plots(df_players_proj, df_ball_proj, plots_dir, clips):
     names, flip_clips = _side_normalization_by_clip(clips)
     df_players_proj = _normalize_player_side(df_players_proj, names, flip_clips)
 
-    players_by_name = {}
-    for name, sub in df_players_proj.groupby("player_name"):
-        real_x = sub["real_x"].to_numpy()
-        real_y = sub["real_y"].to_numpy()
-        players_by_name[name] = (real_x, real_y)
-        heatmaps.export_player_heatmap(
-            real_x, real_y, title=f"Heatmap — {name}  (n={len(sub)} frames)",
-            out_path=plots_dir / f"{_slug(name)}_heatmap.png",
-        )
+    # Nube de puntos por jugador para los plots COMBINADOS de ambos (sueltos en
+    # plots/). El plot individual de cada jugador (movimiento + sus botes, general
+    # y con/sin presion) lo genera pressure_compare en plots/<jugador>/.
+    players_by_name = {
+        name: (sub["real_x"].to_numpy(), sub["real_y"].to_numpy())
+        for name, sub in df_players_proj.groupby("player_name")
+    }
 
     heatmaps.export_combined_player_heatmap(
         players_by_name, plots_dir / "players_combined_heatmap.png",

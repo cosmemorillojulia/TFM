@@ -38,9 +38,11 @@ BEST_MODEL_PATH = MODELS_DIR / "tracknet_best.pth"
 
 # Subcarpetas que cuelgan de la carpeta de cada game (run). El pipeline es
 # incremental y reanudable, pero acumula en CSV master (no un fichero por clip):
-#   <output-dir>/tracking/   -> players_master.csv, ball_master.csv (acumulados)
+#   <output-dir>/tracking/   -> players_master.csv, ball_master.csv, points_pressure.csv
 #   <output-dir>/projected/  -> player_real_coords.csv, ball_real_coords.csv (metros)
-#   <output-dir>/plots/      -> heatmaps, mapa de rebotes, vista combinada
+#   <output-dir>/plots/      -> combinados de ambos jugadores (sueltos) + una
+#                               subcarpeta por jugador con sus mapas individuales
+#                               (general / con_presion / sin_presion)
 #   <output-dir>/videos/     -> un mp4 por clip con las predicciones dibujadas
 TRACKING_SUBDIR = "tracking"
 PROJECTED_SUBDIR = "projected"
