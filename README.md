@@ -1,10 +1,16 @@
-# TFM — Análisis de rendimiento en tenis mediante Computer Vision
+# Análisis de Rendimiento en Tenis mediante Computer Vision
 
-Sistema que, a partir de los vídeos (secuencias de frames) de un partido de tenis,
-**detecta y trackea a los jugadores y la pelota**, proyecta sus posiciones a coordenadas
-reales de la pista (metros) y genera **mapas de calor** de ocupación y de rebotes, además
-de un **análisis bajo presión** (puntos clave: break/set/match points) por jugador y un
-**vídeo** por clip con las predicciones dibujadas.
+[![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-TrackNet-ee4c2c.svg)](https://pytorch.org/)
+[![License](https://img.shields.io/badge/license-MIT-lightgrey.svg)](#)
+
+> Trabajo de Fin de Máster — Universidad de Navarra (UNAV)
+
+Pipeline de visión por computador que, a partir de los vídeos (secuencias de frames) de
+un partido de tenis, **detecta y trackea a los jugadores y la pelota**, proyecta sus
+posiciones a coordenadas reales de la pista (metros) y genera **mapas de calor** de
+ocupación y de rebotes, además de un **análisis bajo presión** (puntos clave:
+break/set/match points) por jugador y un **vídeo** por clip con las predicciones dibujadas.
 
 El proyecto era originalmente un conjunto de 4 notebooks de Jupyter encadenados. Se ha
 reorganizado como un **proyecto Python modular** que se ejecuta de una sola orden:
@@ -18,8 +24,9 @@ los proyecta a metros y genera los mapas de calor, el análisis de presión y lo
 sin tocar nada más.
 
 > Los notebooks originales se conservan, archivados, en [`old_notebooks/`](old_notebooks/).
-> El proyecto **no entrena** ningún modelo: la red de pelota (TrackNet) ya entrenada se
-> carga desde `outputs/models/tracknet_best.pth` y se usa solo para inferencia.
+> El proyecto **no entrena** ningún modelo en su ejecución normal: la red de pelota
+> (TrackNet) ya entrenada se carga desde `outputs/models/tracknet_best.pth` y se usa solo
+> para inferencia.
 
 ---
 
@@ -217,8 +224,10 @@ Para un game procesado en `outputs/<game>/`:
 
 ## Notas
 
-- El entrenamiento de TrackNet **no forma parte de este pipeline**; se hizo aparte en
-  Google Colab con GPU. Ese notebook se conserva en `model_ball_train.ipynb` (raíz).
+- El entrenamiento de TrackNet **no forma parte de este pipeline**; se hizo aparte, desde
+  [`model_ball_train.ipynb`](model_ball_train.ipynb), en una instancia remota de
+  [RunPod](https://www.runpod.io/) con GPU **NVIDIA A100** para acelerar tanto el
+  entrenamiento del modelo como las pruebas del pipeline completo.
 - La selección interactiva de esquinas requiere un entorno con interfaz gráfica (la primera
   vez por game). En ejecuciones posteriores se reutiliza el `court_points.json` cacheado.
 - Por defecto se usa una homografía por game (cámara consistente). El diseño está preparado
