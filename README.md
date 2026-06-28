@@ -190,7 +190,9 @@ El proyecto usa dos datasets con propósitos distintos:
 - **Análisis con/sin presión** (`Dataset_Clutch`): dataset de **desarrollo propio**,
   recopilado y anotado específicamente para este TFM — clips de puntos "clutch"
   (`Clip1`, `Clip2`, …) de un partido, cada uno con sus frames `.jpg`, un `Label.csv`
-  (una fila por frame) y un `info.json` con los metadatos del punto. Disponible en
+  (una fila por frame) y un `info.json` con los metadatos del punto. Cubre únicamente
+  los **sets 4 y 5** del partido (los de mayor carga competitiva y puntos clave).
+  Disponible en
   [Google Drive](https://drive.google.com/file/d/17VHW-W_fIM3o8HITqbd4hfhUYUh6Y8jx/view).
 
 > La carpeta [`test/`](test/) contiene games reducidos (pocos clips) tomados de partidos
@@ -207,7 +209,37 @@ El proyecto usa dos datasets con propósitos distintos:
 | `status` | Estado de la jugada en la anotación original |
 
 > Los botes que se usan en los análisis **no** se leen del `status`: se detectan de la
-> trayectoria proyectada de la pelota (`ball_tracker.detect_real_bounces`).
+> trayectoria proyectada de la pelota (`ball_tracker.detect_real_bounces`), con el
+> criterio descrito a continuación.
+
+#### Criterio de detección de botes ([`src/tracking/ball_tracker.py`](src/tracking/ball_tracker.py))
+
+Un bote es un **extremo local** de la trayectoria vertical de la pelota (`ball_y`), una
+vez limpiada la trayectoria del clip (se interpolan los saltos imposibles del tracking,
+ya que la regla principal mira el frame siguiente y necesita una señal sin ruido):
+
+- **Campo cercano**: `ball_y` (en píxeles, crece hacia abajo) hace un **máximo local** —
+  la pelota baja y rebota hacia arriba.
+- **Campo lejano**: como la pelota se aleja de la cámara, tras botar vuelve hacia ella y
+  su `Y` crece; aparece como un **mínimo local** de `ball_y`.
+
+A partir de ahí se aplican, sobre cada extremo candidato:
+
+1. **Regla principal — continuidad de campo**: tras el extremo, la pelota debe seguir su
+   trayectoria sin cambiar de lado de la red (medido en metros, vía homografía) durante
+   unos frames. Si cruza al campo contrario, se descarta como golpe de raqueta, no bote.
+2. **Prominencia local**: el extremo debe tener una diferencia mínima de `ball_y` respecto
+   a los valles adyacentes (umbral `BOUNCE_MIN_PROMINENCE`), para filtrar oscilaciones de
+   ruido del tracking.
+3. **Exclusión por jugador**: se descartan los extremos que caen en la "zona de golpeo"
+   (parte superior de la caja del jugador) de un jugador cercano en X — son golpes de
+   raqueta, no botes en el suelo. Los que caen a la altura de los pies se conservan.
+4. **Filtro de pista**: se descartan los candidatos que, proyectados a metros, caen
+   claramente fuera de los límites de la pista (con un margen de tolerancia) — ruido de
+   tracking, no un bote real.
+
+La detección se hace **por clip, de forma independiente y genérica** (no hay nada atado a
+clips concretos) y añade la columna `is_real_bounce` (0/1) al DataFrame de la pelota.
 
 `info.json` (metadatos del punto, base del análisis de presión y del etiquetado de lado):
 
@@ -267,3 +299,20 @@ Para un game procesado en `outputs/<game>/`:
   vez por game). En ejecuciones posteriores se reutiliza el `court_points.json` cacheado.
 - Por defecto se usa una homografía por game (cámara consistente). El diseño está preparado
   para pasar a una homografía por clip cambiando la clave de cache, sin reescribir el módulo.
+
+---
+
+## Limitaciones y trabajo futuro
+
+- **Detección de botes**: el criterio actual (extremo local + continuidad de campo +
+  filtros geométricos) funciona bien en general, pero es susceptible de mejora —
+  especialmente en botes cerca de las líneas o con oclusión parcial de la pelota.
+- **Selección de las esquinas de la pista**: actualmente es manual (clic en las 4
+  esquinas la primera vez por game). Un trabajo futuro natural es la **detección
+  automática de las líneas de la pista** por clip o por cambio de plano, eliminando ese
+  paso manual y permitiendo cambiar de cámara sin recalibrar a mano.
+- **Recorte de clips y metadatos**: los clips de `Dataset_Clutch` (vídeo recortado al
+  punto + `info.json` con marcador, saque, situación de presión, etc.) se generaron **a
+  mano** para este TFM. Automatizar esa generación — recortar el clip del punto y derivar
+  sus metadatos a partir del marcador y el contexto del partido — es otra línea de
+  trabajo futuro que permitiría escalar el dataset sin anotación manual.
