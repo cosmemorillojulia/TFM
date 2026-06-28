@@ -1,9 +1,10 @@
 """Homografia: proyeccion de coordenadas en pixeles a metros sobre la pista.
 
 Estima la homografia que lleva pixeles del frame a coordenadas reales (metros)
-del plano de la pista ITF, a partir de las 4 esquinas de la pista. Las esquinas
-se cargan de un JSON cacheado por game; si no existe, se abre una ventana OpenCV
-para seleccionarlas con el raton (una sola vez) y se guardan.
+del plano de la pista ITF, a partir de los 10 puntos de control de la pista
+(4 esquinas, lineas de saque y T). Los puntos se cargan de un JSON cacheado por
+game; si no existe, se abre una ventana OpenCV para seleccionarlos con el raton
+(una sola vez) y se guardan.
 
 Por defecto se usa UNA homografia por game (camara consistente). El diseno esta
 preparado para usar una homografia por clip en el futuro: basta pasar una
@@ -26,15 +27,32 @@ logger = logging.getLogger(__name__)
 
 # Orden de las esquinas exigido (mismo que en el notebook):
 #   1) inferior-izquierda  2) inferior-derecha  3) superior-derecha  4) superior-izquierda
-POINT_ORDER = ["bottom_left", "bottom_right", "top_right", "top_left"]
-_CLICK_LABELS = ["1: inf-izq", "2: inf-der", "3: sup-der", "4: sup-izq"]
+POINT_ORDER = [
+    "bottom_left", "bottom_right", "top_right", "top_left",
+    "service_near_left", "service_near_right",
+    "service_far_left", "service_far_right",
+    "T_near", "T_far",
+]
+_CLICK_LABELS = [
+    "1: inf-izq", "2: inf-der", "3: sup-der", "4: sup-izq",
+    "5: saque-cerca-izq", "6: saque-cerca-der",
+    "7: saque-lejos-izq", "8: saque-lejos-der",
+    "9: T-cerca", "10: T-lejos",
+]
 
-# Puntos del mundo (metros) correspondientes a esas 4 esquinas.
+# Puntos del mundo (metros) correspondientes a los 10 puntos de control.
+# Ejes: X = ancho (0..COURT_WIDTH), Y = largo (0..COURT_LENGTH, red en COURT_LENGTH/2).
+_W  = config.COURT_WIDTH
+_L  = config.COURT_LENGTH
+_MX = config.COURT_WIDTH / 2.0          # centro en X
+_SN = config.NET_Y - config.SERVICE_LINE_FROM_NET   # linea de saque lado bottom (Y bajo, cerca)
+_SF = config.NET_Y + config.SERVICE_LINE_FROM_NET   # linea de saque lado top (Y alto, lejos)
 WORLD_POINTS = np.array([
-    [0.0,                0.0],
-    [config.COURT_WIDTH, 0.0],
-    [config.COURT_WIDTH, config.COURT_LENGTH],
-    [0.0,                config.COURT_LENGTH],
+    [0.0, 0.0],   [_W,  0.0],   # esquinas bottom
+    [_W,  _L],    [0.0, _L],    # esquinas top
+    [0.0, _SN],   [_W,  _SN],   # linea de saque lado bottom (cerca)
+    [0.0, _SF],   [_W,  _SF],   # linea de saque lado top (lejos)
+    [_MX, _SN],   [_MX, _SF],   # T central cerca y lejos
 ], dtype=np.float32)
 
 
@@ -54,29 +72,62 @@ def project_points(pts_xy, matrix):
 
 
 def compute_homography(image_points):
-    """Calcula la homografia pixel -> mundo (metros) a partir de las 4 esquinas.
+    """Calcula la homografia pixel -> mundo (metros) a partir de los puntos de control.
 
-    Con exactamente 4 puntos no degenerados el sistema tiene solucion cerrada,
-    asi que no hace falta RANSAC (``method=0``).
+    Ajusta una unica homografia global por minimos cuadrados (``cv2.findHomography``)
+    usando todos los puntos de control disponibles (esquinas, lineas de saque y T).
 
     Args:
-        image_points: array (4, 2) con las esquinas en pixeles, en el orden de
-            ``POINT_ORDER``.
+        image_points: array (N, 2) con N >= 4 puntos en pixeles, en el orden
+            de ``POINT_ORDER``.
 
     Returns:
         Matriz de homografia 3x3 (pixel -> metros).
     """
     image_points = np.asarray(image_points, dtype=np.float32)
-    if image_points.shape != (4, 2):
-        raise ValueError(f"Se esperaban 4 esquinas (4, 2); recibido {image_points.shape}")
-    homography, _mask = cv2.findHomography(image_points, WORLD_POINTS, method=0)
+    n = len(image_points)
+    if n < 4:
+        raise ValueError(f"Se necesitan al menos 4 puntos; recibido {n}")
 
-    # Sanity check: reproyectar las esquinas debe recuperar los puntos del mundo.
+    world = WORLD_POINTS[:n]
+    homography, _mask = cv2.findHomography(image_points, world, method=0)
+
+    # Sanity check: reproyectar los puntos de control debe recuperar el mundo.
     recovered = project_points(image_points, homography)
-    err = np.linalg.norm(recovered - WORLD_POINTS, axis=1)
-    logger.info("Homografia calculada | error reproyeccion medio %.4f m (max %.4f m)",
-                err.mean(), err.max())
+    err = np.linalg.norm(recovered - world, axis=1)
+    logger.info("Homografia calculada (%d pts) | error reproyeccion medio %.4f m (max %.4f m)",
+                n, err.mean(), err.max())
     return homography
+
+
+def invert_homography(matrix):
+    """Devuelve la homografia inversa (metros -> pixel) de una matriz pixel->metros."""
+    return np.linalg.inv(np.asarray(matrix, dtype=np.float64))
+
+
+def court_lines_world():
+    """Devuelve las lineas de la pista ITF en coordenadas mundo (metros).
+
+    Cada linea es un par ``((x0, y0), (x1, y1))``. Mismas referencias que el
+    dibujo cenital de ``heatmaps._draw_court_2d`` (perimetro, lineas de saque,
+    central de saque y red).
+
+    Returns:
+        Lista de tuplas ``((x0, y0), (x1, y1))`` en metros.
+    """
+    w, length = config.COURT_WIDTH, config.COURT_LENGTH
+    s_near = config.NET_Y - config.SERVICE_LINE_FROM_NET
+    s_far = config.NET_Y + config.SERVICE_LINE_FROM_NET
+    return [
+        ((0, 0), (w, 0)),                 # fondo cercano
+        ((w, 0), (w, length)),            # lateral derecho
+        ((w, length), (0, length)),       # fondo lejano
+        ((0, length), (0, 0)),            # lateral izquierdo
+        ((0, s_near), (w, s_near)),       # linea de saque cercana
+        ((0, s_far), (w, s_far)),         # linea de saque lejana
+        ((w / 2, s_near), (w / 2, s_far)),  # central de saque
+        ((0, config.NET_Y), (w, config.NET_Y)),  # red
+    ]
 
 
 def load_or_select_corners(cache_path, reference_frame_path, cache_key=None):
@@ -104,52 +155,65 @@ def load_or_select_corners(cache_path, reference_frame_path, cache_key=None):
         return image_points
 
     logger.info("No hay cache de esquinas en %s; abriendo seleccion interactiva.", cache_path)
-    image_points = _select_corners_interactive(reference_frame_path)
-    _save_corners(cache_path, image_points, reference_frame_path, cache_key)
-    return image_points
+    # El servidor web escribe el JSON directamente en cache_path; no hace falta
+    # volver a guardarlo aqui.
+    return _select_corners_interactive(reference_frame_path, cache_path)
 
 
-def _select_corners_interactive(reference_frame_path):
-    """Abre una ventana OpenCV y deja clicar las 4 esquinas de la pista.
+def _select_corners_interactive(reference_frame_path, cache_path):
+    """Lanza el servidor web de seleccion de esquinas y espera el resultado.
+
+    Sustituye la seleccion via cv2.imshow (incompatible con entornos headless).
+    Lanza select_court_points.py en un subproceso; el JSON lo escribe ese script
+    y esta funcion lo lee al terminar.
 
     Returns:
         Array (4, 2) de esquinas en pixeles.
 
     Raises:
-        RuntimeError: si la ventana se cierra antes de marcar las 4 esquinas.
+        RuntimeError: si el usuario no completa la seleccion.
     """
-    img = cv2.imread(str(reference_frame_path))
-    if img is None:
-        raise FileNotFoundError(f"No se pudo leer el frame de referencia: {reference_frame_path}")
+    import subprocess
+    import sys
+    from pathlib import Path
 
-    clicked = []
-    window = "Selecciona 4 esquinas: 1) inf-izq  2) inf-der  3) sup-der  4) sup-izq"
+    cache_path = Path(cache_path)
 
-    def _on_mouse(event, x, y, flags, param):
-        if event == cv2.EVENT_LBUTTONDOWN and len(clicked) < 4:
-            clicked.append([float(x), float(y)])
-            cv2.circle(img, (x, y), 6, (0, 0, 255), -1)
-            cv2.putText(img, _CLICK_LABELS[len(clicked) - 1], (x + 8, y - 8),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-            if len(clicked) >= 2:
-                pts = np.array(clicked, dtype=np.int32)
-                cv2.polylines(img, [pts], len(clicked) == 4, (0, 255, 255), 1)
+    # Deducir el game a partir de la ruta del frame (outputs/<game>/... o dataset/<game>/...)
+    ref = Path(reference_frame_path)
+    # Buscar el game en la ruta: es el segmento que empieza por "game"
+    game = next((p for p in ref.parts if p.startswith("game")), None)
+    if game is None:
+        raise RuntimeError(
+            f"No se pudo deducir el game de la ruta {reference_frame_path}. "
+            "Ejecuta manualmente: python select_court_points.py --game <game>"
+        )
 
-    cv2.namedWindow(window, cv2.WINDOW_NORMAL)
-    cv2.setMouseCallback(window, _on_mouse)
-    print("Clica las 4 esquinas en orden (inf-izq, inf-der, sup-der, sup-izq). "
-          "Pulsa una tecla al terminar.")
-    while True:
-        cv2.imshow(window, img)
-        key = cv2.waitKey(20) & 0xFF
-        # Salir al completar las 4 esquinas y pulsar tecla, o con ESC.
-        if (len(clicked) == 4 and key != 255) or key == 27:
-            break
-    cv2.destroyWindow(window)
+    script = Path(__file__).resolve().parents[2] / "select_court_points.py"
+    port = 7860
+    logger.info(
+        "Entorno headless detectado. Abre http://0.0.0.0:%d en tu navegador para "
+        "seleccionar las esquinas de %s y pulsa Guardar.", port, game
+    )
+    try:
+        subprocess.run(
+            [sys.executable, str(script),
+             "--game", game,
+             "--output-dir", str(cache_path.parent),
+             "--port", str(port)],
+            check=True,
+        )
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(f"El servidor de seleccion de esquinas falló: {exc}") from exc
 
-    if len(clicked) != 4:
-        raise RuntimeError(f"Se necesitan 4 esquinas; se marcaron {len(clicked)}.")
-    return np.array(clicked, dtype=np.float32)
+    if not cache_path.exists():
+        raise RuntimeError(
+            f"El servidor terminó pero no se encontró {cache_path}. "
+            "¿Guardaste los puntos antes de cerrar?"
+        )
+    with open(cache_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+    return np.array(data["image_points"], dtype=np.float32)
 
 
 def _save_corners(cache_path, image_points, reference_frame_path, cache_key):

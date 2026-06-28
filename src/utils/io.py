@@ -34,6 +34,41 @@ def append_csv(df, csv_path):
     logger.debug("Anadidas %d filas a %s (cabecera=%s)", len(df), csv_path.name, write_header)
 
 
+def write_csv(df, csv_path):
+    """Escribe ``df`` a un CSV completo (con cabecera), creando el directorio.
+
+    A diferencia de :func:`append_csv`, esta operacion escribe el fichero de una
+    sola vez. Se usa para los outputs por clip del pipeline incremental
+    (``yolo/<clip>.csv``, ``ball/<clip>.csv``), donde cada clip produce su propio
+    fichero atomico y nunca se acumula sobre otro.
+
+    Args:
+        df: ``pandas.DataFrame`` a escribir.
+        csv_path: ruta del CSV destino.
+    """
+    csv_path = Path(csv_path)
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(csv_path, index=False)
+    logger.debug("Escritas %d filas en %s", len(df), csv_path.name)
+
+
+def mark_clip_done(done_dir, clip_name):
+    """Crea el fichero sentinela que marca un clip como procesado en una etapa.
+
+    Args:
+        done_dir: carpeta de sentinelas (p.ej. ``tracking/.done_players``).
+        clip_name: nombre del clip (p.ej. ``Clip1``).
+    """
+    done_dir = Path(done_dir)
+    done_dir.mkdir(parents=True, exist_ok=True)
+    (done_dir / clip_name).touch()
+
+
+def is_clip_done(done_dir, clip_name):
+    """Indica si el clip ya tiene su sentinela de etapa creado."""
+    return (Path(done_dir) / clip_name).exists()
+
+
 def reset_run_outputs(output_dir):
     """Prepara la carpeta de salida de un game, borrando solo los artefactos del run.
 

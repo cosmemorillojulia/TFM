@@ -1,0 +1,26 @@
+09:30:06 | INFO    | main | Game: Dataset/game0 | salida: /workspace/TFM/outputs/game0
+09:30:06 | INFO    | src.pipeline.orchestrator | Game game0 | 1 clips: Clip1
+09:30:06 | INFO    | src.tracking.player_tracker | Jugadores | game0/Clip1 | 600 frames | 1920x1080
+09:30:06 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+09:30:07 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+09:30:37 | INFO    | src.tracking.player_tracker | Jugadores | game0/Clip1 | 16 tracks -> 2 seleccionados por movimiento
+09:30:37 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (1200 filas).
+09:30:37 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+09:30:43 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 8, val_loss 0.00153)
+09:30:43 | INFO    | src.tracking.ball_tracker | Pelota | game0/Clip1 | 600 frames
+09:31:17 | INFO    | src.tracking.ball_tracker | Pelota | game0/Clip1 | detectada en 588/600 frames
+09:31:17 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (600 filas).
+09:31:17 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/game0/court_points.json
+09:31:17 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 2.4626 m (max 6.1632 m)
+09:31:17 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 19
+09:31:17 | INFO    | src.pipeline.orchestrator | Proyectadas 1200 filas de jugadores a player_real_coords.csv
+09:31:17 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 8 | fuera: 11
+09:31:17 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 19 -> ball_real_coords.csv
+09:31:19 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game0/plots/player_bottom_heatmap.png
+09:31:21 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/game0/plots/player_top_heatmap.png
+09:31:22 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/game0/plots/ball_bounces_map.png
+09:31:22 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/game0/plots/combined_view.png
+09:31:22 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/game0/plots
+09:31:46 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/game0/videos/Clip1.mp4 (600 frames)
+09:31:46 | INFO    | src.pipeline.orchestrator | Game game0 procesado. Resultados en /workspace/TFM/outputs/game0
+09:31:46 | INFO    | main | Hecho.

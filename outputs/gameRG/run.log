@@ -1,0 +1,224 @@
+23:32:44 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+23:32:45 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+23:32:45 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 250 frames | 1920x1080
+23:32:45 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+23:32:45 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+23:32:59 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+23:32:59 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+23:32:59 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 92 frames | 1920x1080
+23:33:04 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+23:33:04 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+23:33:04 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 200 frames | 1920x1080
+23:33:14 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+23:33:14 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+23:33:14 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+23:33:15 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 7, val_loss 0.00220)
+23:33:15 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | 250 frames
+23:33:26 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | detectada en 214/250 frames
+23:33:26 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (250 filas).
+23:33:26 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | 92 frames
+23:33:30 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | detectada en 76/92 frames
+23:33:30 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (92 filas).
+23:33:30 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | 200 frames
+23:33:39 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | detectada en 176/200 frames
+23:33:39 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (200 filas).
+23:33:39 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+23:33:39 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+23:33:40 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 8 (descartados por golpe de raqueta: 8)
+23:33:40 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+23:33:40 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 3 | fuera: 5
+23:33:40 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 8 -> ball_real_coords.csv
+23:33:40 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+23:33:40 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+23:33:40 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+23:33:41 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+23:33:41 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+23:33:49 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+23:33:52 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+23:33:59 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+23:33:59 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+23:33:59 | INFO    | main | Hecho.
+23:45:22 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+23:45:22 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+23:45:23 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 250 frames | 1920x1080
+23:45:23 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+23:45:23 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+23:45:37 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+23:45:37 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+23:45:37 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 92 frames | 1920x1080
+23:45:42 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+23:45:42 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+23:45:42 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 200 frames | 1920x1080
+23:45:52 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+23:45:52 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+23:45:52 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+23:45:53 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 7, val_loss 0.00220)
+23:45:53 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | 250 frames
+23:46:05 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | detectada en 214/250 frames
+23:46:05 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (250 filas).
+23:46:05 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | 92 frames
+23:46:09 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | detectada en 76/92 frames
+23:46:09 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (92 filas).
+23:46:09 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | 200 frames
+23:46:18 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | detectada en 176/200 frames
+23:46:18 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (200 filas).
+23:46:18 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+23:46:18 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+23:46:19 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 8 (descartados por golpe de raqueta: 8)
+23:46:19 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+23:46:19 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 3 | fuera: 5
+23:46:19 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 8 -> ball_real_coords.csv
+23:46:19 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+23:46:19 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+23:46:19 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+23:46:20 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+23:46:20 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+23:46:28 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+23:46:31 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+23:46:38 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+23:46:38 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+23:46:38 | INFO    | main | Hecho.
+23:49:27 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+23:49:27 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+23:49:27 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 ya procesado; se salta.
+23:49:27 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 ya procesado; se salta.
+23:49:27 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 ya procesado; se salta.
+23:49:27 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 ya procesado; se salta.
+23:49:27 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 ya procesado; se salta.
+23:49:27 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 ya procesado; se salta.
+23:49:27 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+23:49:27 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+23:49:28 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 8 (descartados por golpe de raqueta: 8)
+23:49:28 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+23:49:28 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 3 | fuera: 5
+23:49:28 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 8 -> ball_real_coords.csv
+23:49:28 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+23:49:29 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+23:49:29 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+23:49:29 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+23:49:29 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+23:49:38 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+23:49:42 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+23:49:50 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+23:49:50 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+23:49:50 | INFO    | main | Hecho.
+00:00:46 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+00:00:46 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+00:00:46 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 250 frames | 1920x1080
+00:00:46 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+00:00:47 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+00:01:01 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+00:01:01 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+00:01:01 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 92 frames | 1920x1080
+00:01:06 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+00:01:06 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+00:01:06 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 200 frames | 1920x1080
+00:01:16 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+00:01:17 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+00:01:17 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+00:01:18 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 7, val_loss 0.00220)
+00:01:18 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | 250 frames
+00:01:29 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | detectada en 214/250 frames
+00:01:29 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (250 filas).
+00:01:29 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | 92 frames
+00:01:33 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | detectada en 76/92 frames
+00:01:33 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (92 filas).
+00:01:33 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | 200 frames
+00:01:42 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | detectada en 176/200 frames
+00:01:42 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (200 filas).
+00:01:42 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+00:01:42 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+00:01:43 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 10 (descartados por golpe de raqueta: 5)
+00:01:43 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+00:01:43 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 4 | fuera: 6
+00:01:43 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 10 -> ball_real_coords.csv
+00:01:43 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+00:01:43 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+00:01:44 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+00:01:44 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+00:01:44 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+00:01:52 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+00:01:56 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+00:02:04 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+00:02:04 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+00:02:04 | INFO    | main | Hecho.
+00:29:34 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+00:29:34 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+00:29:34 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 250 frames | 1920x1080
+00:29:35 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+00:29:35 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+00:29:49 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+00:29:49 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+00:29:49 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 92 frames | 1920x1080
+00:29:54 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+00:29:54 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+00:29:54 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 200 frames | 1920x1080
+00:30:04 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+00:30:04 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+00:30:04 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+00:30:05 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 7, val_loss 0.00220)
+00:30:05 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | 250 frames
+00:30:16 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | detectada en 214/250 frames
+00:30:16 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (250 filas).
+00:30:16 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | 92 frames
+00:30:20 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | detectada en 76/92 frames
+00:30:20 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (92 filas).
+00:30:20 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | 200 frames
+00:30:29 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | detectada en 176/200 frames
+00:30:29 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (200 filas).
+00:30:29 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+00:30:29 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+00:30:30 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 2 (descartados | golpe raqueta: 14 | fuera de pista: 16)
+00:30:30 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+00:30:30 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 2 | fuera: 0
+00:30:30 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 2 -> ball_real_coords.csv
+00:30:30 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+00:30:30 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+00:30:31 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+00:30:31 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+00:30:31 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+00:30:40 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+00:30:43 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+00:30:49 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+00:30:49 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+00:30:49 | INFO    | main | Hecho.
+00:42:15 | INFO    | main | Game: test/gameRG | salida: /workspace/TFM/outputs/gameRG
+00:42:15 | INFO    | src.pipeline.orchestrator | Game gameRG | 3 clips: Clip1, Clip2, Clip3
+00:42:15 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 250 frames | 1920x1080
+00:42:15 | INFO    | src.tracking.player_tracker | Modelo YOLO cargado: yolo11m.pt | clases COCO: 80
+00:42:15 | INFO    | src.tracking.player_tracker | GPU detectada para YOLO: NVIDIA L4
+00:42:29 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip1 | 10 tracks -> 2 seleccionados por movimiento
+00:42:29 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip1 acumulado (500 filas) | presion punto: (1, 1).
+00:42:29 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 92 frames | 1920x1080
+00:42:33 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip2 | 8 tracks -> 2 seleccionados por movimiento
+00:42:33 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip2 acumulado (184 filas) | presion punto: (1, 1).
+00:42:33 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 200 frames | 1920x1080
+00:42:43 | INFO    | src.tracking.player_tracker | Jugadores | gameRG/Clip3 | 12 tracks -> 2 seleccionados por movimiento
+00:42:43 | INFO    | src.pipeline.orchestrator | [JUGADORES] Clip3 acumulado (400 filas) | presion punto: (1, 1).
+00:42:43 | INFO    | src.tracking.ball_tracker | GPU detectada para TrackNet: NVIDIA L4
+00:42:45 | INFO    | src.tracking.ball_tracker | Checkpoint TrackNet cargado (epoch 7, val_loss 0.00220)
+00:42:45 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | 250 frames
+00:42:55 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip1 | detectada en 214/250 frames
+00:42:55 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip1 acumulado (250 filas).
+00:42:55 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | 92 frames
+00:42:59 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip2 | detectada en 76/92 frames
+00:42:59 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip2 acumulado (92 filas).
+00:42:59 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | 200 frames
+00:43:07 | INFO    | src.tracking.ball_tracker | Pelota | gameRG/Clip3 | detectada en 176/200 frames
+00:43:07 | INFO    | src.pipeline.orchestrator | [PELOTA] Clip3 acumulado (200 filas).
+00:43:07 | INFO    | src.geometry.homography | Esquinas de pista cargadas de /workspace/TFM/outputs/gameRG/court_points.json
+00:43:07 | INFO    | src.geometry.homography | Homografia calculada (10 pts) | error reproyeccion medio 0.0381 m (max 0.0644 m)
+00:43:08 | INFO    | src.tracking.ball_tracker | Botes reales detectados: 1 (descartados | cruza campo: 1 | golpe raqueta: 9 | fuera de pista: 6)
+00:43:08 | INFO    | src.pipeline.orchestrator | Proyectadas 1084 filas de jugadores a player_real_coords.csv
+00:43:08 | INFO    | src.tracking.ball_tracker | Botes clasificados | dentro: 1 | fuera: 0
+00:43:08 | INFO    | src.pipeline.orchestrator | Botes reales proyectados: 1 -> ball_real_coords.csv
+00:43:08 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_bottom_heatmap.png
+00:43:08 | INFO    | src.visualization.heatmaps | Heatmap de jugador guardado en /workspace/TFM/outputs/gameRG/plots/player_top_heatmap.png
+00:43:09 | INFO    | src.visualization.heatmaps | Mapa de rebotes guardado en /workspace/TFM/outputs/gameRG/plots/ball_bounces_map.png
+00:43:09 | INFO    | src.visualization.heatmaps | Vista combinada guardada en /workspace/TFM/outputs/gameRG/plots/combined_view.png
+00:43:09 | INFO    | src.pipeline.orchestrator | Plots generados en /workspace/TFM/outputs/gameRG/plots
+00:43:17 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip1.mp4 (250 frames)
+00:43:20 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip2.mp4 (92 frames)
+00:43:27 | INFO    | src.visualization.video | Video del clip guardado en /workspace/TFM/outputs/gameRG/videos/Clip3.mp4 (200 frames)
+00:43:27 | INFO    | src.pipeline.orchestrator | Game gameRG procesado. Resultados en /workspace/TFM/outputs/gameRG
+00:43:27 | INFO    | main | Hecho.

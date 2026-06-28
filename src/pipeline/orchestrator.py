@@ -1,164 +1,494 @@
-"""Orquestacion del procesamiento completo de un game.
+"""El flujo del sistema: orquestacion incremental y reanudable de un game.
 
-Sustituye al encadenado "Restart & Run All" de los 4 notebooks por una funcion
-unica, ``run_game``, que:
+Este modulo es el GUION del proyecto. ``run_game`` recorre un game completo y va
+llamando, en un orden estricto, a los modulos que generan cada artefacto:
 
-1. Descubre todos los clips del game.
-2. Recorre los clips uno a uno (la unidad del bucle es el CLIP, no el frame,
-   porque TrackNet necesita 3 frames consecutivos y ByteTrack necesita
-   continuidad temporal). Por cada clip:
-      - trackea los jugadores  -> append a ``players_master.csv``
-      - infiere la pelota       -> append a ``ball_master.csv``
-3. Tras procesar todos los clips: calcula la homografia del game, proyecta los
-   dos CSV a metros y genera los mapas de calor.
-4. Opcionalmente exporta los CSV master a un Excel.
+    Paso 1  jugadores + presion   (tracking.player_tracker + data.pressure)
+    Paso 2  pelota                (tracking.ball_tracker)
+    Paso 3  homografia + proyeccion a metros        (geometry.homography)
+    Paso 4  plots generales de ambos jugadores      (visualization.heatmaps)
+    Paso 5  plots por jugador (movimiento + botes)  (visualization.pressure_compare)
+    Paso 6  videos por clip                         (visualization.video)
 
-La acumulacion es siempre por append a CSV; el Excel es solo una exportacion
-final. Las rutas de salida cuelgan de la carpeta del run (``outputs/<game>``).
+Los pasos 1 y 2 corren clip a clip (la unidad es el clip: TrackNet necesita 3
+frames seguidos y ByteTrack continuidad temporal). Los pasos 3-6 (``_finalize``)
+corren una sola vez, cuando TODOS los clips ya tienen jugadores y pelota, porque
+homografia/plots/videos necesitan el game entero.
+
+Es incremental y reanudable con cache por clip: antes de computar una etapa sobre
+un clip se comprueba su sentinela; si existe, se salta. Nada se borra: si una
+ejecucion anterior dejo resultados parciales, se continua desde donde se quedo. La
+acumulacion en los CSV master es por append; los sentinelas evitan duplicar filas
+al reanudar (no se puede inferir del propio master, que es concatenado).
+
+Estructura de outputs bajo ``output_dir``:
+
+    <output-dir>/tracking/players_master.csv   -> jugadores acumulados (con presion)
+    <output-dir>/tracking/ball_master.csv      -> pelota acumulada
+    <output-dir>/tracking/points_pressure.csv  -> presion por punto (pressure_p1/p2)
+    <output-dir>/tracking/.done_players/<clip> -> sentinela de etapa jugadores
+    <output-dir>/tracking/.done_ball/<clip>    -> sentinela de etapa pelota
+    <output-dir>/projected/player_real_coords.csv -> jugadores en metros
+    <output-dir>/projected/ball_real_coords.csv   -> botes reales en metros
+    <output-dir>/plots/                         -> heatmaps generales + carpeta por jugador
+    <output-dir>/videos/<clip>.mp4              -> predicciones dibujadas por clip
+    <output-dir>/court_points.json              -> cache de esquinas
 """
 
 import logging
+import re
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 import config
-from src.data import loaders
+from src.data import loaders, pressure
 from src.geometry import homography
 from src.tracking import ball_tracker, player_tracker
 from src.utils import io
-from src.visualization import heatmaps
+from src.visualization import heatmaps, pressure_compare, video
 
 logger = logging.getLogger(__name__)
 
 
-def run_game(game_path, output_dir, export_excel=False):
-    """Procesa un game entero y genera todos los artefactos en ``output_dir``.
+def _paths(output_dir):
+    """Agrupa las rutas de artefactos del run en un dict para no repetirlas."""
+    output_dir = Path(output_dir)
+    tracking = output_dir / config.TRACKING_SUBDIR
+    projected = output_dir / config.PROJECTED_SUBDIR
+    return {
+        "tracking": tracking,
+        "projected": projected,
+        "plots": output_dir / config.PLOTS_SUBDIR,
+        "videos": output_dir / config.VIDEOS_SUBDIR,
+        "players_master": tracking / config.PLAYERS_MASTER_CSV,
+        "ball_master": tracking / config.BALL_MASTER_CSV,
+        "points_pressure": tracking / config.POINTS_PRESSURE_CSV,
+        "done_players": tracking / config.DONE_PLAYERS_DIRNAME,
+        "done_ball": tracking / config.DONE_BALL_DIRNAME,
+        "player_real": projected / config.PLAYER_REAL_CSV,
+        "ball_real": projected / config.BALL_REAL_CSV,
+    }
+
+
+def check_stage(output_dir, clip, stage):
+    """Indica si el output de una etapa ya existe en disco.
+
+    Centraliza TODA la logica de existencia de ficheros del pipeline.
 
     Args:
-        game_path: ruta a la carpeta del game (p.ej. ``Dataset/game1``).
-        output_dir: carpeta de salida del run (p.ej. ``outputs/game1``).
+        output_dir: carpeta de salida del run.
+        clip: directorio del clip (para ``players``/``ball``) o la LISTA de clips
+            del game (para ``final``, que comprueba un video por clip).
+        stage: ``"players"``, ``"ball"`` o ``"final"``.
+
+    Returns:
+        ``True`` si el output de esa etapa ya esta generado.
+    """
+    p = _paths(output_dir)
+    if stage == "players":
+        return io.is_clip_done(p["done_players"], Path(clip).name)
+    if stage == "ball":
+        return io.is_clip_done(p["done_ball"], Path(clip).name)
+    if stage == "final":
+        # La etapa final se considera completa si existen los CSV proyectados, la
+        # vista combinada de los plots Y un video por cada clip. ``clip`` aqui es
+        # la lista de clips del game (no un directorio), para poder contar videos.
+        csv_plots_ok = (
+            p["player_real"].exists()
+            and p["ball_real"].exists()
+            and (p["plots"] / "combined_view.png").exists()
+        )
+        if not csv_plots_ok:
+            return False
+        clips = clip or []
+        return all((p["videos"] / f"{Path(c).name}.mp4").exists() for c in clips)
+    raise ValueError(f"Etapa desconocida: {stage!r} (usa 'players', 'ball' o 'final').")
+
+
+def run_game(game_path, output_dir, export_excel=False, force_plots=False):
+    """El FLUJO completo de un game: llama en orden a cada etapa del pipeline.
+
+    Esta funcion es el guion del sistema. Recorre los clips y va invocando, en un
+    orden estricto, los modulos que generan cada artefacto:
+
+        Paso 1  jugadores + presion   (tracking.player_tracker + data.pressure)
+        Paso 2  pelota                (tracking.ball_tracker)
+        Pasos 3-6  etapa final        (ver _finalize: homografia/proyeccion,
+                                       plots generales, plots por jugador, videos)
+
+    Es incremental y reanudable a TODOS los niveles: cada clip deja un sentinela al
+    terminar tracking (jugadores/pelota), y en la etapa final cada sub-paso se salta
+    si su salida ya existe. Al relanzar solo se computa lo que falte, sin duplicar
+    filas; p.ej. si solo faltan los videos, solo se generan los videos.
+
+    Args:
+        game_path: ruta a la carpeta del game (p.ej. ``Dataset_Clutch``).
+        output_dir: carpeta de salida del run.
         export_excel: si ``True``, exporta los CSV master a un Excel al final.
+        force_plots: si ``True``, rehace los plots (pasos 4 y 5) aunque ya existan.
     """
     game_path = Path(game_path)
     output_dir = Path(output_dir)
+    p = _paths(output_dir)
 
-    # Rutas de los artefactos del run.
-    tracking_dir = output_dir / config.TRACKING_SUBDIR
-    projected_dir = output_dir / config.PROJECTED_SUBDIR
-    heatmaps_dir = output_dir / config.HEATMAPS_SUBDIR
-    players_master = tracking_dir / config.PLAYERS_MASTER_CSV
-    ball_master = tracking_dir / config.BALL_MASTER_CSV
-
-    # ---- 1. Descubrir clips ----
+    # ---- Descubrir clips ----
     clips = loaders.list_clips(game_path)
     if not clips:
-        raise FileNotFoundError(f"El game {game_path} no contiene clips con Label.csv.")
+        raise FileNotFoundError(f"El game {game_path} no contiene clips con frames .jpg.")
     logger.info("Game %s | %d clips: %s",
                 game_path.name, len(clips), ", ".join(c.name for c in clips))
 
-    # ---- 2. Bucle clip a clip con acumulacion por append ----
-    for clip_dir in clips:
-        df_players = player_tracker.track_clip(clip_dir)
-        if not df_players.empty:
-            io.append_csv(df_players, players_master)
+    # ---- Cortocircuito: todo completo ----
+    # Con --force-plots no se cortocircuita aunque todo este hecho: hay que rehacer
+    # los plots.
+    all_players = all(check_stage(output_dir, c, "players") for c in clips)
+    all_ball = all(check_stage(output_dir, c, "ball") for c in clips)
+    final_done = check_stage(output_dir, clips, "final")
+    if all_players and all_ball and final_done and not force_plots:
+        logger.info("Nada que hacer: todas las etapas ya estan completas en %s.", output_dir)
+        return
 
+    # ---- Paso 1: jugadores + presion por clip (append al master + sentinela) ----
+    # Cada clip se procesa de forma autocontenida y en este orden:
+    #   info.json -> modelos de vision -> resolver presion con la info ya leida
+    #   -> guardar (players_master con columna "pressure" + points_pressure).
+    # No hace falta una fase previa de lectura masiva de JSONs.
+    for clip_dir in clips:
+        if check_stage(output_dir, clip_dir, "players"):
+            logger.info("[JUGADORES] %s ya procesado; se salta.", clip_dir.name)
+            continue
+        # (a) Leer primero el info.json de ESTE clip.
+        info = pressure.load_clip_info(clip_dir)
+        # (b) Ejecutar el pipeline de vision sobre los frames de ESTE clip.
+        df_players = player_tracker.track_clip(clip_dir)
+        # (c) Resolver player_label -> presion del jugador y escribir la fila ya
+        #     con la columna "pressure" en el mismo paso. Ademas, acumular una
+        #     fila a nivel de PUNTO (pressure_p1, pressure_p2) en points_pressure.
+        if not df_players.empty:
+            df_players = df_players.assign(
+                pressure=df_players["player_label"].map(
+                    lambda label: pressure.resolve_pressure_for_row(info, label)
+                )
+            )
+            io.append_csv(df_players, p["players_master"])
+        _append_point_pressure(info, p["points_pressure"])
+        io.mark_clip_done(p["done_players"], clip_dir.name)
+        logger.info("[JUGADORES] %s acumulado (%d filas) | presion punto: %s.",
+                    clip_dir.name, len(df_players), pressure.compute_pressure(info))
+
+    # ---- Paso 2: pelota por clip (requiere jugadores del clip) ----
+    for clip_dir in clips:
+        if check_stage(output_dir, clip_dir, "ball"):
+            logger.info("[PELOTA] %s ya procesado; se salta.", clip_dir.name)
+            continue
+        if not check_stage(output_dir, clip_dir, "players"):
+            logger.warning("[PELOTA] %s sin etapa de jugadores; se omite (dependencia).",
+                           clip_dir.name)
+            continue
         df_ball = ball_tracker.infer_clip(clip_dir)
         if not df_ball.empty:
-            io.append_csv(df_ball, ball_master)
+            io.append_csv(df_ball, p["ball_master"])
+        io.mark_clip_done(p["done_ball"], clip_dir.name)
+        logger.info("[PELOTA] %s acumulado (%d filas).", clip_dir.name, len(df_ball))
 
-    # ---- 3. Homografia + proyeccion + heatmaps (sobre el game completo) ----
-    homography_matrix = _resolve_homography(game_path, clips, output_dir)
-    _project_masters(players_master, ball_master, projected_dir, homography_matrix)
-    _generate_heatmaps(projected_dir, heatmaps_dir)
+    # ---- Pasos 3-6: proyeccion + plots + videos (solo si todo esta acumulado) --
+    # Toda la etapa final (ver _finalize) solo corre cuando TODOS los clips tienen
+    # ya jugadores y pelota, porque homografia/plots/videos necesitan el game entero.
+    if not all(check_stage(output_dir, c, "ball") for c in clips):
+        pendientes = [c.name for c in clips if not check_stage(output_dir, c, "ball")]
+        logger.warning(
+            "[FINAL] No se generan proyecciones/plots/videos: faltan %d clips (%s). "
+            "Vuelve a lanzar para completar.", len(pendientes), ", ".join(pendientes))
+        return
 
-    # ---- 4. Export final a Excel (opcional) ----
+    # La etapa final se entra siempre que no este 100% completa (o si se fuerza
+    # rehacer plots): _finalize decide internamente, por existencia de fichero, que
+    # sub-paso falta (proyeccion/plots/videos) y solo genera eso. Asi, si solo
+    # faltan videos, no se rehacen los plots.
+    if not force_plots and check_stage(output_dir, clips, "final"):
+        logger.info("[FINAL] Proyecciones, plots y videos ya generados; se salta.")
+    else:
+        _finalize(game_path, clips, output_dir, p, force_plots=force_plots)
+
+    # ---- Export final a Excel (opcional) ----
     if export_excel:
         io.export_excel(
-            {players_master: "jugadores", ball_master: "pelota"},
+            {p["players_master"]: "jugadores", p["ball_master"]: "pelota"},
             output_dir / config.EXCEL_FILENAME,
         )
 
     logger.info("Game %s procesado. Resultados en %s", game_path.name, output_dir)
 
 
-def _resolve_homography(game_path, clips, output_dir):
-    """Carga o selecciona las esquinas del game y devuelve la matriz de homografia.
+def _append_point_pressure(info, points_pressure_csv):
+    """Acumula una fila a nivel de PUNTO en ``points_pressure.csv``.
 
-    Las esquinas se cachean en ``output_dir/court_points.json``. El frame de
-    referencia es ``REFERENCE_FRAME`` del primer clip del game.
+    A diferencia de ``players_master`` (formato largo: una fila por jugador y
+    frame con su propia ``pressure``), este CSV tiene una fila por clip/punto con
+    las DOS columnas ``pressure_p1`` / ``pressure_p2`` (salida directa de
+    ``compute_pressure``), para ver de un vistazo a quien afecto la presion.
+
+    Es idempotente respecto a la reanudacion: solo se llama una vez por clip,
+    desde la etapa de jugadores, protegida por el mismo sentinela ``.done_players``.
     """
-    cache_path = output_dir / config.COURT_POINTS_FILENAME
+    pressure_p1, pressure_p2 = pressure.compute_pressure(info)
+    row = pd.DataFrame([{
+        "clip_id": info["clip_id"],
+        "game_id": info["game_id"],
+        "pressure_p1": pressure_p1,
+        "pressure_p2": pressure_p2,
+    }])
+    io.append_csv(row, points_pressure_csv)
+
+
+def _plots_done(p, clips):
+    """¿Estan ya generados los plots de la etapa final (pasos 4 y 5)?
+
+    Deteccion por existencia de fichero (no hay sentinela: cada PNG es idempotente
+    y se sobrescribe sin acumular). Se consideran completos si existen los tres
+    plots GENERALES (paso 4) y al menos una carpeta de jugador con su ``general.png``
+    (paso 5). No se enumeran los nombres de jugador (eso exigiria leer los info.json)
+    porque para decidir "ya hay plots por jugador" basta con que exista alguno.
+    """
+    plots_dir = p["plots"]
+    if not plots_dir.exists():
+        return False
+    generales = (
+        (plots_dir / "combined_view.png").exists()
+        and (plots_dir / "players_combined_heatmap.png").exists()
+        and (plots_dir / "ball_bounces_map.png").exists()
+    )
+    por_jugador = any(
+        (d / "general.png").exists() for d in plots_dir.iterdir() if d.is_dir()
+    )
+    return generales and por_jugador
+
+
+def _finalize(game_path, clips, output_dir, p, force_plots=False):
+    """Etapa final del flujo, una vez TODOS los clips tienen jugadores y pelota.
+
+    Encadena los pasos 3 a 6 del pipeline (los 1 y 2 —jugadores y pelota— los hace
+    ``run_game`` clip a clip). Cada paso llama a un modulo y entrega su salida al
+    siguiente; el orden es deliberado y estricto:
+
+        3. homografia + proyeccion a metros   (geometry + ball_tracker)
+        4. plots generales de ambos jugadores (visualization.heatmaps)
+        5. plots por jugador (movimiento+botes, general y con/sin presion)
+        6. videos por clip                    (visualization.video)  <- siempre el ultimo
+
+    Cada sub-etapa con coste se salta si su salida ya existe (deteccion por
+    existencia de fichero, idempotente), de modo que se reanuda desde donde se
+    quedo: si solo faltan videos, solo se generan los videos. ``force_plots``
+    fuerza rehacer los plots (4 y 5) aunque ya existan.
+    """
+    # --- Paso 3: homografia + proyeccion a metros -------------------------------
+    # Siempre se prepara en memoria (es barato: leer los master, detectar botes y
+    # proyectar) porque tanto los plots como los videos necesitan estos datos. La
+    # reescritura de los CSV proyectados tambien es trivial y los deja al dia para
+    # que el paso 5 (que los lee de disco) use la version actual.
+    homography_matrix = _resolve_homography(game_path, clips, output_dir)
+    df_players = pd.read_csv(p["players_master"]) if p["players_master"].exists() \
+        else pd.DataFrame()
+    df_ball = pd.read_csv(p["ball_master"]) if p["ball_master"].exists() else pd.DataFrame()
+    if not df_ball.empty:
+        df_ball = ball_tracker.detect_real_bounces(
+            df_ball, df_players, homography_matrix=homography_matrix)
+    df_players_proj, df_ball_proj = _project_masters(
+        df_players, df_ball, p, homography_matrix)
+
+    # --- Pasos 4-5: plots (generales + por jugador) -----------------------------
+    # Coste real (KDE). Se saltan si ya estan generados, salvo force_plots. Asi, si
+    # solo faltan los videos, no se rehacen los plots que ya existen.
+    if force_plots or not _plots_done(p, clips):
+        # Paso 4: plots generales (heatmaps de ambos jugadores + mapa de rebotes).
+        _generate_plots(df_players_proj, df_ball_proj, p["plots"], clips)
+        # Paso 5: plots por jugador (movimiento + sus botes; general y con/sin
+        # presion). Lee los CSV proyectados que el paso 3 acaba de escribir y deja
+        # un PNG por jugador en plots/<jugador>/.
+        pressure_compare.generate(output_dir, clips)
+    else:
+        logger.info("[FINAL] Plots ya generados; se saltan (usa --force-plots para rehacer).")
+
+    # --- Paso 6: videos por clip (lo ultimo del pipeline) -----------------------
+    # _generate_videos ya genera SOLO los <clip>.mp4 que falten (salta los que
+    # existen), asi que reanuda por clip sin tocar los ya hechos.
+    _generate_videos(game_path, clips, df_players, df_ball, homography_matrix, p["videos"])
+
+
+def _resolve_homography(game_path, clips, output_dir):
+    """Carga o selecciona las esquinas del game y devuelve la matriz de homografia."""
+    cache_path = Path(output_dir) / config.COURT_POINTS_FILENAME
     reference_frame = clips[0] / config.REFERENCE_FRAME
     if not reference_frame.exists():
-        # Si no existe el frame de referencia esperado, usa el primer frame del clip.
         reference_frame = loaders.list_frames(clips[0])[0]
-
     image_points = homography.load_or_select_corners(
         cache_path, reference_frame, cache_key=game_path.name,
     )
     return homography.compute_homography(image_points)
 
 
-def _project_masters(players_master, ball_master, projected_dir, homography_matrix):
-    """Proyecta a metros los CSV master de jugadores y pelota."""
-    projected_dir.mkdir(parents=True, exist_ok=True)
+def _project_masters(df_players, df_ball, p, homography_matrix):
+    """Proyecta a metros los master de jugadores y pelota y escribe los CSV."""
+    p["projected"].mkdir(parents=True, exist_ok=True)
 
     # Jugadores: proyectar el punto de pie (foot_x, foot_y).
-    df_players = pd.read_csv(players_master)
     df_players_proj = homography.project_dataframe(
         df_players, "foot_x", "foot_y", "real_x", "real_y", homography_matrix,
     )
-    players_out = df_players_proj[["clip", "frame", "player_label", "real_x", "real_y"]]
-    players_out = players_out.rename(columns={"player_label": "player_id"})
-    players_out.to_csv(projected_dir / config.PLAYER_REAL_CSV, index=False)
+    players_out = (df_players_proj[["clip", "frame", "player_label", "real_x", "real_y"]]
+                   .rename(columns={"player_label": "player_id"}))
+    io.write_csv(players_out, p["player_real"])
     logger.info("Proyectadas %d filas de jugadores a %s",
                 len(players_out), config.PLAYER_REAL_CSV)
 
-    # Pelota: proyectar (ball_x, ball_y) si existe el master.
-    if Path(ball_master).exists():
-        df_ball = pd.read_csv(ball_master)
+    # Pelota: proyectar solo los botes reales (is_real_bounce=1) — son los únicos
+    # frames donde la pelota está en el suelo y la homografía es válida.
+    if not df_ball.empty:
         df_ball_proj = homography.project_dataframe(
             df_ball, "ball_x", "ball_y", "ball_real_x", "ball_real_y", homography_matrix,
         )
-        ball_out = df_ball_proj[["clip", "frame", "ball_real_x", "ball_real_y", "is_bounce"]]
-        ball_out.to_csv(projected_dir / config.BALL_REAL_CSV, index=False)
-        logger.info("Proyectadas %d filas de pelota a %s",
-                    len(ball_out), config.BALL_REAL_CSV)
+        df_ball_proj = ball_tracker.classify_bounce_location(
+            df_ball_proj, config.COURT_WIDTH, config.COURT_LENGTH,
+            margin=config.BOUNCE_IN_MARGIN_M)
+        out_cols = ["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce", "bounce_in"]
+        ball_out = df_ball_proj[df_ball_proj["is_real_bounce"] == 1][out_cols]
+        io.write_csv(ball_out, p["ball_real"])
+        logger.info("Botes reales proyectados: %d -> %s", len(ball_out), config.BALL_REAL_CSV)
     else:
-        logger.warning("No hay %s; se omite la proyeccion de la pelota.", ball_master)
+        df_ball_proj = df_ball
+        io.write_csv(pd.DataFrame(
+            columns=["clip", "frame", "ball_real_x", "ball_real_y", "is_real_bounce", "bounce_in"]),
+            p["ball_real"])
+        logger.warning("Master de pelota vacio; ball_real_coords.csv sin filas.")
+
+    return df_players_proj, df_ball_proj
 
 
-def _generate_heatmaps(projected_dir, heatmaps_dir):
-    """Genera los PNG de heatmaps a partir de las coordenadas proyectadas."""
-    heatmaps_dir.mkdir(parents=True, exist_ok=True)
+def _slug(name):
+    """Convierte un nombre de jugador en un slug seguro para nombre de fichero.
 
-    df_players = pd.read_csv(projected_dir / config.PLAYER_REAL_CSV)
+    ``"Carlos Alcaraz"`` -> ``"carlos_alcaraz"``.
+    """
+    return re.sub(r"[^a-z0-9]+", "_", name.lower()).strip("_") or "jugador"
 
-    # Heatmap por jugador (escalas independientes).
-    players_by_label = {}
-    for label, sub in df_players.groupby("player_id"):
-        real_x = sub["real_x"].to_numpy()
-        real_y = sub["real_y"].to_numpy()
-        players_by_label[label] = (real_x, real_y)
-        out_path = heatmaps_dir / f"{label}_heatmap.png"
-        heatmaps.export_player_heatmap(
-            real_x, real_y, title=f"Heatmap — {label}  (n={len(sub)} frames)",
-            out_path=out_path,
-        )
 
-    # Mapa de rebotes (si hay pelota proyectada).
+def _side_normalization_by_clip(clips):
+    """Devuelve ``(names, flip_clips)`` para normalizar el lado por clip.
+
+    Convencion canonica: ``player_1`` arriba, ``player_2`` abajo. Un clip se
+    refleja entero (giro de 180º) cuando en el ``player_1`` jugaba en el lado
+    contrario al suyo, es decir ``player_1_position == "bottom"``. Reflejar el
+    clip COMPLETO (jugadores y botes con la misma regla) mantiene coherente quien
+    esta en cada mitad: tras normalizar, el lado de un bote indica el campo de un
+    jugador concreto.
+
+    Returns:
+        names: dict ``{(clip_key, player_label): nombre_real}``.
+        flip_clips: set de ``clip_key`` que deben reflejarse.
+    """
+    names, flip_clips = {}, set()
+    for clip_dir in clips:
+        key = loaders.clip_key(clip_dir)
+        try:
+            info = pressure.load_clip_info(clip_dir)
+            clip_names = pressure.resolve_player_names(info)
+            p1_pos = info["player_1_position"]
+        except (FileNotFoundError, KeyError) as exc:
+            logger.warning("[PLOTS] %s sin nombres de jugador (%s); se usan top/bottom.",
+                           clip_dir.name, exc)
+            names[(key, "player_top")] = "player_top"
+            names[(key, "player_bottom")] = "player_bottom"
+            continue
+        names[(key, "player_top")] = clip_names["player_top"]
+        names[(key, "player_bottom")] = clip_names["player_bottom"]
+        if p1_pos == "bottom":
+            flip_clips.add(key)
+    return names, flip_clips
+
+
+def _flip_xy(df, flip_clips, x_col, y_col):
+    """Refleja 180º (``x->W-x``, ``y->L-y``) las filas cuyos clips se normalizan."""
+    df = df.copy()
+    flip = df["clip"].isin(flip_clips)
+    df.loc[flip, x_col] = config.COURT_WIDTH - df.loc[flip, x_col]
+    df.loc[flip, y_col] = config.COURT_LENGTH - df.loc[flip, y_col]
+    return df
+
+
+def _normalize_player_side(df, names, flip_clips):
+    """Añade ``player_name`` y refleja al lado canonico (player_1 arriba)."""
+    df = df.copy()
+    df["player_name"] = [
+        names.get((c, lbl), lbl)
+        for c, lbl in zip(df["clip"], df["player_label"])
+    ]
+    return _flip_xy(df, flip_clips, "real_x", "real_y")
+
+
+def _generate_plots(df_players_proj, df_ball_proj, plots_dir, clips):
+    """Genera los PNG de plots a partir de los DataFrames ya proyectados.
+
+    Los heatmaps se agrupan por JUGADOR REAL (nombre del info.json) y se normaliza
+    su lado: player_1 siempre arriba, player_2 siempre abajo. Como cada jugador
+    alterna de lado durante el game, sin normalizar (a) agrupar por
+    ``player_top``/``player_bottom`` mezclaria a las dos personas y (b) un mismo
+    jugador apareceria en ambas mitades.
+    """
+    plots_dir.mkdir(parents=True, exist_ok=True)
+
+    # Normalizacion de lado por clip (player_1 arriba, player_2 abajo). La MISMA
+    # regla de flip se aplica a jugadores y a botes para que, tras normalizar, el
+    # lado del bote identifique el campo de un jugador concreto.
+    names, flip_clips = _side_normalization_by_clip(clips)
+    df_players_proj = _normalize_player_side(df_players_proj, names, flip_clips)
+
+    # Nube de puntos por jugador para los plots COMBINADOS de ambos (sueltos en
+    # plots/). El plot individual de cada jugador (movimiento + sus botes, general
+    # y con/sin presion) lo genera pressure_compare en plots/<jugador>/.
+    players_by_name = {
+        name: (sub["real_x"].to_numpy(), sub["real_y"].to_numpy())
+        for name, sub in df_players_proj.groupby("player_name")
+    }
+
+    heatmaps.export_combined_player_heatmap(
+        players_by_name, plots_dir / "players_combined_heatmap.png",
+    )
+
     bounces_x, bounces_y = np.empty(0), np.empty(0)
-    ball_real_csv = projected_dir / config.BALL_REAL_CSV
-    if ball_real_csv.exists():
-        df_ball = pd.read_csv(ball_real_csv).dropna(subset=["ball_real_x", "ball_real_y"])
-        bounces = df_ball[df_ball["is_bounce"] == 1]
+    if not df_ball_proj.empty and "ball_real_x" in df_ball_proj.columns:
+        valid = df_ball_proj.dropna(subset=["ball_real_x", "ball_real_y"])
+        bounces = valid[valid["is_real_bounce"] == 1]
+        # Reflejar los botes con la misma regla de lado que los jugadores.
+        bounces = _flip_xy(bounces, flip_clips, "ball_real_x", "ball_real_y")
         bounces_x = bounces["ball_real_x"].to_numpy()
         bounces_y = bounces["ball_real_y"].to_numpy()
-        heatmaps.export_bounce_map(bounces_x, bounces_y, heatmaps_dir / "ball_bounces_map.png")
+        heatmaps.export_bounce_map(bounces_x, bounces_y, plots_dir / "ball_bounces_map.png")
 
-    # Vista combinada.
     heatmaps.export_combined_view(
-        players_by_label, bounces_x, bounces_y, heatmaps_dir / "combined_view.png",
+        players_by_name, bounces_x, bounces_y, plots_dir / "combined_view.png",
     )
+    logger.info("Plots generados en %s", plots_dir)
+
+
+def _generate_videos(game_path, clips, df_players, df_ball, homography_matrix, videos_dir):
+    """Genera un video por clip con las predicciones dibujadas sobre los frames."""
+    videos_dir.mkdir(parents=True, exist_ok=True)
+    for clip_dir in clips:
+        key = loaders.clip_key(clip_dir)
+        out_path = videos_dir / f"{clip_dir.name}.mp4"
+        if out_path.exists():
+            logger.info("[VIDEO] %s ya existe; se salta.", out_path.name)
+            continue
+        df_p = df_players[df_players["clip"] == key] if not df_players.empty else df_players
+        df_b = df_ball[df_ball["clip"] == key] if not df_ball.empty else df_ball
+        # Nombres reales de los jugadores (del info.json de ESTE clip) para
+        # etiquetar las cajas con el nombre en vez de player_top/player_bottom.
+        try:
+            label_names = pressure.resolve_player_names(pressure.load_clip_info(clip_dir))
+        except (FileNotFoundError, KeyError) as exc:
+            logger.warning("[VIDEO] %s sin nombres de jugador (%s); se usan top/bottom.",
+                           clip_dir.name, exc)
+            label_names = None
+        video.render_clip_video(clip_dir, df_p, df_b, homography_matrix, out_path, label_names)

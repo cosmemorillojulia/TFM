@@ -92,12 +92,13 @@ def _compute_bands(frame_w, frame_h):
     return bands
 
 
-def _select_two_players(xyxy, area_vals, bands):
-    """Selecciona hasta dos jugadores (uno por mitad) de las detecciones de un frame.
+def _valid_detections(xyxy, area_vals, bands):
+    """Indices de las detecciones de un frame que pasan el filtro geometrico basico.
 
-    Filtra por bandas globales, zonas de exclusion y area minima; despues elige
-    la deteccion de mayor area en la mitad superior y en la inferior (respecto a
-    ``y_mid``). Portado de ``select_two_players`` del notebook 01.
+    Filtra por bandas globales, zonas de exclusion y area minima. A diferencia de
+    la version anterior, NO elige solo 2 por frame: devuelve TODOS los candidatos
+    validos para que el filtro temporal (por track) decida despues. Asi, si el
+    jugador real no es la mayor caja en su mitad un frame concreto, no se pierde.
 
     Args:
         xyxy: array (N, 4) de cajas [x1, y1, x2, y2].
@@ -105,7 +106,7 @@ def _select_two_players(xyxy, area_vals, bands):
         bands: dict de limites en pixeles devuelto por ``_compute_bands``.
 
     Returns:
-        Lista de indices (0, 1 o 2) de las detecciones seleccionadas.
+        Array de indices de las detecciones que pasan el filtro.
     """
     foot_x = (xyxy[:, 0] + xyxy[:, 2]) / 2.0
     foot_y = xyxy[:, 3]
@@ -117,18 +118,58 @@ def _select_two_players(xyxy, area_vals, bands):
     for (zx0, zy0, zx1, zy1) in bands["exclusion_px"]:
         valid &= ~((foot_x >= zx0) & (foot_x <= zx1) & (foot_y >= zy0) & (foot_y <= zy1))
     valid &= (area_vals >= config.MIN_BBOX_AREA)
+    return np.where(valid)[0]
 
-    if not valid.any():
-        return []
 
-    idxs = np.where(valid)[0]
-    selected = []
-    top = idxs[foot_y[idxs] < bands["y_mid"]]
-    if len(top):
-        selected.append(top[np.argmax(area_vals[top])])
-    bot = idxs[foot_y[idxs] >= bands["y_mid"]]
-    if len(bot):
-        selected.append(bot[np.argmax(area_vals[bot])])
+def _select_players_by_motion(df_dets, bands, frame_diag, total_frames):
+    """Selecciona los 2 jugadores del clip por DESPLAZAMIENTO acumulado del track.
+
+    Distingue jugadores de jueces usando la dinamica temporal: por cada track_id
+    de ByteTrack se mide cuanto se desplaza su punto de pie a lo largo del clip y
+    en cuantos frames aparece. Los jueces (casi estaticos) y los tracks fugaces
+    (recogepelotas, falsos positivos) se descartan. De los tracks que superan los
+    umbrales, se elige el de MAYOR desplazamiento en cada mitad de pista.
+
+    Args:
+        df_dets: DataFrame de TODAS las detecciones validas del clip (con
+            columnas ``frame, player_id, foot_x, foot_y``).
+        bands: limites en pixeles (para ``y_mid``).
+        frame_diag: diagonal de la imagen en pixeles (para normalizar el umbral).
+        total_frames: numero total de frames del clip (para la presencia).
+
+    Returns:
+        Conjunto de ``player_id`` (track_id) seleccionados como jugadores (0, 1 o 2).
+    """
+    min_disp_px = config.MIN_TRACK_DISPLACEMENT_FRAC * frame_diag
+    min_presence = config.MIN_TRACK_PRESENCE_FRAC * max(total_frames, 1)
+
+    stats = []  # (track_id, desplazamiento_total, frames_presente, foot_y_medio)
+    for tid, sub in df_dets.groupby("player_id"):
+        sub = sub.sort_values("frame")
+        fx = sub["foot_x"].to_numpy()
+        fy = sub["foot_y"].to_numpy()
+        # Desplazamiento total: suma de distancias entre posiciones consecutivas.
+        if len(fx) >= 2:
+            disp = float(np.sum(np.hypot(np.diff(fx), np.diff(fy))))
+        else:
+            disp = 0.0
+        stats.append((tid, disp, len(sub), float(np.median(fy))))
+
+    # Candidatos: superan desplazamiento y presencia minimos (descartan jueces).
+    candidates = [s for s in stats if s[1] >= min_disp_px and s[2] >= min_presence]
+    if not candidates:
+        # Fallback: si nada supera el umbral (clip muy corto/estatico), usar los
+        # de mayor desplazamiento sin filtrar, para no quedarnos sin jugadores.
+        candidates = sorted(stats, key=lambda s: s[1], reverse=True)[:2]
+
+    y_mid = bands["y_mid"]
+    selected = set()
+    top = [c for c in candidates if c[3] < y_mid]
+    bot = [c for c in candidates if c[3] >= y_mid]
+    if top:
+        selected.add(max(top, key=lambda c: c[1])[0])   # mayor desplazamiento arriba
+    if bot:
+        selected.add(max(bot, key=lambda c: c[1])[0])   # mayor desplazamiento abajo
     return selected
 
 
@@ -212,46 +253,68 @@ def track_clip(clip_dir):
     sampled_frames = frames[::config.FRAME_STEP]
     sampled_indices = list(range(0, len(frames), config.FRAME_STEP))
 
-    results_iter = model.track(
-        source=[str(p) for p in sampled_frames],
-        classes=[config.PERSON_CLASS_ID],
-        conf=config.CONF_THRESHOLD,
-        iou=config.IOU_THRESHOLD,
-        imgsz=config.IMGSZ,
-        tracker=config.TRACKER_CFG,
-        device=device,
-        persist=True,
-        stream=True,
-        verbose=False,
-    )
-
+    # ---- Fase A: recoger TODAS las detecciones validas del clip (con track_id) ----
+    # Se procesa en LOTES de YOLO_BATCH frames. Pasar la lista completa de un clip
+    # largo (400+ frames) a model.track apilaba todo en VRAM y provocaba CUDA OOM
+    # con yolo11m. Por lote pequeno el pico de memoria se acota; persist=True
+    # mantiene la continuidad de los track_id de ByteTrack entre lotes.
     records = []
-    for enum_idx, result in enumerate(results_iter):
-        frame_idx = sampled_indices[enum_idx]
-        boxes = result.boxes
-        if boxes is None or len(boxes) == 0:
-            continue
-        xyxy = boxes.xyxy.cpu().numpy()
-        conf = boxes.conf.cpu().numpy()
-        ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
-        area_vals = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
+    batch = config.YOLO_BATCH
+    for start in range(0, len(sampled_frames), batch):
+        chunk = sampled_frames[start:start + batch]
+        chunk_indices = sampled_indices[start:start + batch]
+        results_iter = model.track(
+            source=[str(p) for p in chunk],
+            classes=[config.PERSON_CLASS_ID],
+            conf=config.CONF_THRESHOLD,
+            iou=config.IOU_THRESHOLD,
+            imgsz=config.IMGSZ,
+            tracker=config.TRACKER_CFG,
+            device=device,
+            persist=True,
+            stream=True,
+            verbose=False,
+        )
+        for enum_idx, result in enumerate(results_iter):
+            frame_idx = chunk_indices[enum_idx]
+            boxes = result.boxes
+            if boxes is None or len(boxes) == 0:
+                continue
+            xyxy = boxes.xyxy.cpu().numpy()
+            conf = boxes.conf.cpu().numpy()
+            ids = boxes.id.cpu().numpy().astype(int) if boxes.id is not None else None
+            if ids is None:
+                # Sin track_id no se puede aplicar el filtro temporal; saltar.
+                continue
+            area_vals = (xyxy[:, 2] - xyxy[:, 0]) * (xyxy[:, 3] - xyxy[:, 1])
 
-        for i in _select_two_players(xyxy, area_vals, bands):
-            x1, y1, x2, y2 = xyxy[i]
-            records.append({
-                "clip": key,
-                "frame": frame_idx,
-                "player_id": int(ids[i]) if ids is not None else int(i),
-                "foot_x": float((x1 + x2) / 2),
-                "foot_y": float(y2),
-                "bbox_x1": float(x1), "bbox_y1": float(y1),
-                "bbox_x2": float(x2), "bbox_y2": float(y2),
-                "confidence": float(conf[i]),
-            })
+            for i in _valid_detections(xyxy, area_vals, bands):
+                x1, y1, x2, y2 = xyxy[i]
+                records.append({
+                    "clip": key,
+                    "frame": frame_idx,
+                    "player_id": int(ids[i]),
+                    "foot_x": float((x1 + x2) / 2),
+                    "foot_y": float(y2),
+                    "bbox_x1": float(x1), "bbox_y1": float(y1),
+                    "bbox_x2": float(x2), "bbox_y2": float(y2),
+                    "confidence": float(conf[i]),
+                })
 
-    df_sampled = pd.DataFrame.from_records(records)
-    if df_sampled.empty:
+    df_all = pd.DataFrame.from_records(records)
+    if df_all.empty:
         logger.warning("Sin detecciones de jugadores en %s", key)
+        return df_all
+
+    # ---- Fase B: seleccionar los 2 jugadores por desplazamiento del track ----
+    frame_diag = float(np.hypot(frame_w, frame_h))
+    player_ids = _select_players_by_motion(df_all, bands, frame_diag, len(frames))
+    df_sampled = df_all[df_all["player_id"].isin(player_ids)].copy()
+    n_tracks = df_all["player_id"].nunique()
+    logger.info("Jugadores | %s | %d tracks -> %d seleccionados por movimiento",
+                key, n_tracks, len(player_ids))
+    if df_sampled.empty:
+        logger.warning("Ningun track supero el filtro de movimiento en %s", key)
         return df_sampled
 
     df_players = _interpolate_players(df_sampled, len(frames), key)
