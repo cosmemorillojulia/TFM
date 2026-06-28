@@ -219,6 +219,22 @@ El proyecto usa dos datasets con propósitos distintos:
 | `is_break_point`, `is_set_point`, `is_match_point`, `tie_break` | Contexto de presión del punto |
 | `score_player1`, `score_player2`, `set_player1`, `set_player2` | Marcador, para decidir quién va por detrás |
 
+#### Criterio de presión ([`src/data/pressure.py`](src/data/pressure.py))
+
+La presión de cada jugador en un punto (`pressure_p1` / `pressure_p2`, valores `0`/`1`)
+se deriva del `info.json` del clip aplicando estas reglas, en orden:
+
+1. **Tie-break** → presión para **ambos** jugadores, pisando el resto de reglas.
+2. **Break point** → presión solo para quien **saca** (`server`).
+3. **Game point o set point** → presión para quien va **perdiendo el game actual**
+   (según `score_player1` / `score_player2`).
+4. **Match point** → presión para quien va **perdiendo el partido**: por sets
+   (`set_player1` / `set_player2`) si no están empatados, o por el game en curso si los
+   sets están igualados.
+
+Las reglas no son excluyentes: un jugador puede acumular presión por más de un motivo en
+el mismo punto (p.ej. ser el que saca en un break point que es también match point).
+
 ---
 
 ## Salidas
