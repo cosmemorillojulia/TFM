@@ -1,4 +1,4 @@
-# Análisis de Rendimiento en Tenis mediante Computer Vision
+# Sistema de Rendimiento en Tenis mediante Visión por Computador y Clutch Analytics
 
 [![Python](https://img.shields.io/badge/python-3.13-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-TrackNet-ee4c2c.svg)](https://pytorch.org/)
@@ -6,7 +6,7 @@
 
 > Trabajo de Fin de Máster — Universidad de Navarra (UNAV)
 
-Pipeline de visión por computador que, a partir de los vídeos (secuencias de frames) de
+Sistema de visión por computador que, a partir de los vídeos (secuencias de frames) de
 un partido de tenis, **detecta y trackea a los jugadores y la pelota**, proyecta sus
 posiciones a coordenadas reales de la pista (metros) y genera **mapas de calor** de
 ocupación y de rebotes, además de un **análisis bajo presión** (puntos clave:
@@ -16,17 +16,16 @@ El proyecto era originalmente un conjunto de 4 notebooks de Jupyter encadenados.
 reorganizado como un **proyecto Python modular** que se ejecuta de una sola orden:
 
 ```bash
-python main.py --game-path Dataset_Clutch --output-dir outputs/final_v1
+python main.py --game-path Dataset_Clutch --output-dir outputs/final
 ```
 
 Este comando procesa el *game* entero (todos sus clips), acumula los resultados en CSV,
 los proyecta a metros y genera los mapas de calor, el análisis de presión y los vídeos,
 sin tocar nada más.
 
-> Los notebooks originales se conservan, archivados, en [`old_notebooks/`](old_notebooks/).
 > El proyecto **no entrena** ningún modelo en su ejecución normal: la red de pelota
 > (TrackNet) ya entrenada se carga desde `outputs/models/tracknet_best.pth` y se usa solo
-> para inferencia.
+> para inferencia. El entrenamiento se documenta aparte (ver [Notas](#notas)).
 
 ---
 
@@ -40,20 +39,21 @@ sin tocar nada más.
    > [pytorch.org](https://pytorch.org). El sistema funciona en CPU, pero la inferencia
    > de pelota es más lenta.
 
-2. **Coloca el dataset** en `Dataset/` (un directorio por game, con clips y su `Label.csv`)
+2. **Coloca el dataset** del game a procesar en una carpeta propia en la raíz del proyecto
+   (por ejemplo `Dataset_Clutch/`, con un subdirectorio por clip y su `Label.csv`)
    y el **modelo entrenado** en `outputs/models/tracknet_best.pth`.
 
-3. **Ejecuta** sobre un game:
+3. **Ejecuta** sobre un game, pasando la ruta a su carpeta con `--game-path`:
    ```bash
-   python main.py --game-path Dataset_Clutch --output-dir outputs/final_v1
+   python main.py --game-path Dataset_Clutch --output-dir outputs/final
    ```
    La **primera vez** por game se abrirá una ventana para que cliques las **4 esquinas de
    la pista** (en orden: inferior-izq, inferior-der, superior-der, superior-izq). Quedan
    cacheadas y no se vuelven a pedir.
 
-   > También funciona con los games del dataset TrackNet clásico (`Dataset/game1`, …), pero
-   > esos clips **no traen `info.json`**: en ese caso no hay análisis de presión ni nombres
-   > reales, y los jugadores se etiquetan como `player_top` / `player_bottom`.
+   > También funciona con games sin `info.json` (p.ej. los del dataset TrackNet clásico,
+   > usado solo para entrenar): en ese caso no hay análisis de presión ni nombres reales, y
+   > los jugadores se etiquetan como `player_top` / `player_bottom`.
 
 ### Argumentos de `main.py`
 
@@ -133,6 +133,9 @@ ProyectoTFM/
 ├── requirements.txt
 ├── README.md
 │
+├── model_ball_train.ipynb      # Entrenamiento de TrackNet (ejecutado en RunPod, GPU A100)
+├── select_court_points.ipynb   # Utilidad para seleccionar/depurar manualmente las esquinas de pista
+│
 ├── src/
 │   ├── data/
 │   │   ├── loaders.py          # Descubrir clips de un game, listar frames, leer Label.csv
@@ -149,19 +152,22 @@ ProyectoTFM/
 │   ├── pipeline/orchestrator.py  # El flujo: llama en orden a cada etapa (jugadores→pelota→…→vídeos)
 │   └── utils/io.py             # Append seguro a CSV, reseteo de run, export a Excel
 │
-├── old_notebooks/              # Los 4 notebooks originales + el de entrenamiento + demo (archivados)
-│
 ├── outputs/
 │   ├── models/
-│   │   └── tracknet_best.pth   # Modelo entrenado (global, compartido entre ejecuciones)
-│   └── <game>/                 # Una carpeta por game procesado (p.ej. final_v1)
+│   │   └── tracknet_best.pth   # Modelo entrenado en uso (global, compartido entre ejecuciones)
+│   ├── grid_models/            # Resultados del grid search de entrenamiento (pesos + informes comparativos)
+│   └── <game>/                 # Una carpeta por game procesado (p.ej. final, games_test/<game>)
 │       ├── court_points.json   # Esquinas de pista cacheadas (NO se borra al reejecutar)
 │       ├── tracking/           # players_master.csv, ball_master.csv, points_pressure.csv
 │       ├── projected/          # *_real_coords.csv (coordenadas en metros)
 │       ├── plots/              # combinados (sueltos) + una carpeta por jugador
 │       └── videos/             # un mp4 por clip
 │
-└── Dataset_Clutch/             # Dataset de clips "clutch" (no versionado)
+├── test/                       # Games de prueba con pocos clips, para validar el pipeline rápido
+│   ├── RolandGarros/
+│   └── game/
+│
+└── Dataset_Clutch/             # Dataset de clips "clutch" para el análisis con/sin presión (no versionado)
     └── ClipM/                  # Frames 0000.jpg... + Label.csv + info.json (metadatos del punto)
 ```
 
@@ -172,11 +178,24 @@ bandas y zonas de exclusión del filtro de jugadores, resolución y umbral de Tr
 dimensiones de la pista ITF, márgenes y parámetros del KDE. Los módulos de `src/` no
 contienen rutas ni umbrales hardcodeados: todo se importa de aquí.
 
-### El dataset
+### Datasets
 
-Se usa **`Dataset_Clutch`**: clips de puntos "clutch" (`Clip1`, `Clip2`, …) de un partido.
-Cada clip incluye sus frames como `.jpg`, un `Label.csv` con una fila por frame y un
-`info.json` con los metadatos del punto.
+El proyecto usa dos datasets con propósitos distintos:
+
+- **Entrenamiento de TrackNet** (detección de pelota): dataset público de TrackNet,
+  colocado en una carpeta `Dataset/` y usado solo para entrenar la red desde
+  [`model_ball_train.ipynb`](model_ball_train.ipynb) — no se usa en la ejecución normal
+  del pipeline (`main.py`). Disponible en
+  [Google Drive](https://drive.google.com/drive/folders/11r0RUaQHX7I3ANkaYG4jOxXK1OYo01Ut).
+- **Análisis con/sin presión** (`Dataset_Clutch`): dataset de **desarrollo propio**,
+  recopilado y anotado específicamente para este TFM — clips de puntos "clutch"
+  (`Clip1`, `Clip2`, …) de un partido, cada uno con sus frames `.jpg`, un `Label.csv`
+  (una fila por frame) y un `info.json` con los metadatos del punto. Disponible en
+  [Google Drive](https://drive.google.com/file/d/17VHW-W_fIM3o8HITqbd4hfhUYUh6Y8jx/view).
+
+> La carpeta [`test/`](test/) contiene games reducidos (pocos clips) tomados de partidos
+> reales (Roland Garros) para validar rápidamente el pipeline sin procesar un dataset
+> completo.
 
 `Label.csv` (una fila por frame):
 
